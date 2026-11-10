@@ -1,0 +1,31 @@
+# dependencies
+/node_modules
+
+# env (segredos reais nunca versionados)
+.env
+.env*.local
+
+# Prisma Client gerado — reproduzível a partir do schema, não versionar.
+/lib/generated
+
+# next.js
+/.next/
+/out/
+/build
+next-env.d.ts
+*.tsbuildinfo
+
+# misc
+.DS_Store
+*.pem
+
+# logs
+npm-debug.log*
+
+# estado de sessão do Painel de Missões — nunca versionado
+.missao-atual
+.missoes-quadro.json
+
+# Postgres nativo local usado pela suíte de testes (Íris) — efêmero, recriado
+# a cada sessão (não sobrevive entre sessões, ver memória do projeto).
+.pgdata-test/

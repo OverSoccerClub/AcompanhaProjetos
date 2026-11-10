@@ -1,0 +1,40 @@
+{
+  "name": "innovare-acompanhe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Innovare Acompanhe — portal de acompanhamento de projetos de clientes. Next.js (App Router) + Prisma 7 (@prisma/adapter-pg) + Postgres. Ver docs/acompanhamento-arquitetura.md no repo do site para o contrato completo.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "postinstall": "prisma generate",
+    "lint": "tsc --noEmit",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:studio": "prisma studio",
+    "create-staff": "tsx scripts/create-staff.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "next": "16.3.0",
+    "nodemailer": "^9.0.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
+    "prisma": "^7.8.0",
+    "tsx": "^4.23.1",
+    "typescript": "^5",
+    "vitest": "^4.1.12"
+  }
+}

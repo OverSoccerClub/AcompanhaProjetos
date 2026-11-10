@@ -1,0 +1,139 @@
+"use server";
+
+// Server Actions do admin para a fila de intakes (seção 4.3 da
+// arquitetura). Toda action aqui chama `requireStaff()` como primeira
+// linha — a checagem de ROLE (não só "está logado") é o que impede um
+// CLIENT de disparar uma conversão mesmo adivinhando o nome da action.
+import { prisma } from "@/lib/prisma";
+import { IntakeStatus, ProjectStatus, UpdateType, Visibility } from "@/lib/generated/prisma/enums";
+import { requireStaff } from "@/lib/session";
+import { generateProjectCode } from "@/lib/ids";
+import { applyStageTemplate } from "@/lib/stage-template";
+import { requestMagicLink } from "@/lib/magic-link";
+
+export type ListIntakesInput = {
+  status?: (typeof IntakeStatus)[keyof typeof IntakeStatus];
+  cursor?: string;
+  limit?: number;
+};
+
+const MAX_LIST_LIMIT = 50;
+const DEFAULT_LIST_LIMIT = 20;
+
+/** Fila de triagem — sempre paginada (nunca "todos os intakes"). */
+export async function listIntakes(input: ListIntakesInput = {}) {
+  await requireStaff();
+  const limit = Math.min(Math.max(input.limit ?? DEFAULT_LIST_LIMIT, 1), MAX_LIST_LIMIT);
+
+  const items = await prisma.intake.findMany({
+    where: input.status ? { status: input.status } : undefined,
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
+    ...(input.cursor && { cursor: { id: input.cursor }, skip: 1 }),
+    select: {
+      id: true,
+      protocol: true,
+      status: true,
+      source: true,
+      createdAt: true,
+      client: { select: { id: true, name: true } },
+    },
+  });
+
+  const hasMore = items.length > limit;
+  return { items: items.slice(0, limit), nextCursor: hasMore ? items[limit].id : null };
+}
+
+export async function getIntake(intakeId: string) {
+  await requireStaff();
+  return prisma.intake.findUnique({
+    where: { id: intakeId },
+    include: { client: true, project: { select: { id: true, code: true } } },
+  });
+}
+
+export type ConvertIntakeInput = {
+  title: string;
+  projectType: "SITE";
+  contactName: string;
+  contactEmail: string;
+};
+
+/**
+ * Converte um Intake em Project (seção 5.3): cria o Project, semeia as
+ * etapas do template (§3), cria/reusa o User CLIENT do contato e dispara o
+ * link mágico de boas-vindas. Tudo numa única transação, exceto o envio do
+ * e-mail (efeito externo — roda só depois do commit, best-effort).
+ */
+export async function convertIntake(intakeId: string, input: ConvertIntakeInput) {
+  const staff = await requireStaff();
+
+  if (typeof input.title !== "string" || input.title.trim().length < 2) {
+    throw new Error("Título do projeto precisa ter ao menos 2 caracteres.");
+  }
+  const email = input.contactEmail?.trim().toLowerCase();
+  if (!email || !email.includes("@")) {
+    throw new Error("E-mail de contato inválido.");
+  }
+  if (typeof input.contactName !== "string" || input.contactName.trim().length < 2) {
+    throw new Error("Nome de contato inválido.");
+  }
+
+  const intake = await prisma.intake.findUnique({ where: { id: intakeId } });
+  if (!intake) throw new Error("Intake não encontrado.");
+  if (intake.status === IntakeStatus.CONVERTIDO) {
+    throw new Error("Este intake já foi convertido em projeto.");
+  }
+
+  const { project, userId } = await prisma.$transaction(async (tx) => {
+    const code = await generateProjectCode(tx);
+    const project = await tx.project.create({
+      data: {
+        code,
+        title: input.title.trim(),
+        type: input.projectType,
+        status: ProjectStatus.BRIEFING_RECEBIDO,
+        clientId: intake.clientId,
+      },
+    });
+
+    await applyStageTemplate(tx, project.id, input.projectType);
+
+    await tx.intake.update({
+      where: { id: intake.id },
+      data: { status: IntakeStatus.CONVERTIDO, projectId: project.id },
+    });
+
+    let user = await tx.user.findUnique({ where: { email } });
+    if (!user) {
+      user = await tx.user.create({
+        data: { email, name: input.contactName.trim(), role: "CLIENT", clientId: intake.clientId },
+      });
+    } else if (user.role !== "CLIENT" || user.clientId !== intake.clientId) {
+      throw new Error("Este e-mail já está cadastrado para outro papel ou outra empresa.");
+    }
+
+    await tx.projectUpdate.create({
+      data: {
+        projectId: project.id,
+        authorId: staff.id,
+        type: UpdateType.STATUS,
+        visibility: Visibility.CLIENTE,
+        text: `Projeto criado a partir do briefing ${intake.protocol}.`,
+      },
+    });
+
+    return { project, userId: user.id };
+  });
+
+  // Fora da transação: efeito externo (e-mail). Best-effort — se falhar, o
+  // staff pode reenviar o convite via `inviteClientUser` depois.
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (user) {
+    await requestMagicLink(user.email, null).catch((err) =>
+      console.error("[intake-admin] Falha ao enviar convite de boas-vindas (não-crítico).", err)
+    );
+  }
+
+  return { projectId: project.id, projectCode: project.code };
+}

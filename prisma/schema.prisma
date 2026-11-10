@@ -1,0 +1,427 @@
+// Schema de dados do Innovare Acompanhe — portal de acompanhamento de
+// projetos de clientes. Fundação (Fase 1) desenhada a partir de
+// `docs/acompanhamento-arquitetura.md` (seção 2) no repo do site. Este
+// arquivo só modela dados: API, auth e telas são do Vega/Lyra, sobre este
+// Prisma Client.
+//
+// Mesmo padrão do Painel de Missões (`innovarecode-missoes/prisma/schema.prisma`):
+// Prisma 7, `@prisma/adapter-pg` em runtime (sem engine nativo), Postgres 16.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  STAFF
+  CLIENT
+}
+
+// Triagem do briefing bruto. CONVERTIDO é terminal "com sucesso" (ganhou um
+// Project); DESCARTADO é terminal "sem sucesso" (lead que não seguiu).
+enum IntakeStatus {
+  NOVO
+  EM_TRIAGEM
+  CONVERTIDO
+  DESCARTADO
+}
+
+// Fechado por enquanto (D12: só SITE no MVP), mas é ADD VALUE no Postgres —
+// migração aditiva e não-destrutiva quando entrar SISTEMA/APP de verdade.
+// Por isso enum aqui e NÃO linhas como ProjectStage: o conjunto de tipos de
+// projeto é decisão de produto rara, diferente do catálogo de etapas (que
+// varia por projeto e precisa ser editável sem migração).
+enum ProjectType {
+  SITE
+  SISTEMA
+  APP
+  BOT
+}
+
+// Status macro do projeto (seção 3 da arquitetura). É SEMPRE informado pelo
+// staff, nunca derivado do estado das etapas — derivar pareceria elegante,
+// mas cria casos impossíveis (projeto PAUSADO com etapa EM_ANDAMENTO).
+enum ProjectStatus {
+  BRIEFING_RECEBIDO
+  EM_ANALISE
+  PROPOSTA_ENVIADA
+  APROVADO
+  EM_ANDAMENTO
+  AGUARDANDO_CLIENTE
+  EM_REVISAO
+  PUBLICADO
+  EM_SUPORTE
+  CONCLUIDO
+  PAUSADO
+  CANCELADO
+}
+
+// As 4 fases que o site PROMETE ao visitante ("Descoberta → Planejamento &
+// Design → Desenvolvimento → Entrega & Suporte"). Fixas e públicas — é
+// marketing, não deveria mudar com frequência; por isso enum, diferente das
+// etapas (ProjectStage), que são o detalhe interno de cada fase e essas sim
+// precisam ser linhas editáveis por projeto.
+enum ProjectPhase {
+  DESCOBERTA
+  PLANEJAMENTO_DESIGN
+  DESENVOLVIMENTO
+  ENTREGA_SUPORTE
+}
+
+enum StageStatus {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDA
+  PULADA
+}
+
+enum UpdateType {
+  STATUS
+  ETAPA
+  COMENTARIO
+  ARQUIVO
+  MARCO
+}
+
+// Regra de ouro do produto (seção 8, risco crítico): todo conteúdo mostrável
+// carrega este campo, e o portal só lê itens com visibility = CLIENTE. Esse
+// filtro mora numa única camada de acesso a dados do portal (`portalData`,
+// a construir pelo Vega) — nunca espalhado tela a tela.
+enum Visibility {
+  INTERNA
+  CLIENTE
+}
+
+// ---------------------------------------------------------------------------
+// Identidade e acesso
+// ---------------------------------------------------------------------------
+
+// Qualquer pessoa que faz login (staff da casa OU contato de um cliente).
+//
+// Constraint por desenho que o Prisma Schema Language não expressa (ADD
+// CONSTRAINT manual na migração, não confiar que o código da aplicação vai
+// sempre lembrar de popular/zerar `clientId` certo):
+//   1. role = STAFF  → clientId DEVE ser NULL
+//   2. role = CLIENT → clientId NÃO PODE ser NULL
+//   3. email DEVE estar em minúsculas (email = lower(email)) — a app
+//      normaliza antes de gravar; se esquecer, o INSERT/UPDATE falha em vez
+//      de criar um duplicado funcional ("Ana@x.com" vs "ana@x.com").
+// Ver prisma/migrations/<timestamp>_init/migration.sql para o SQL exato.
+model User {
+  id    String @id @default(cuid())
+  email String @unique @db.VarChar(254)
+  name  String
+  phone String?
+
+  role Role
+
+  // Só preenchido para role = CLIENT (ver CHECK constraint acima). Tabela de
+  // vínculo (ex. ClientMember) é dívida consciente para o dia em que um
+  // contato precisar atender duas empresas — não desenhar isso no escuro.
+  //
+  // onDelete Restrict EXPLÍCITO (o default do Prisma para relação opcional
+  // seria SetNull): deixar o Postgres zerar `clientId` sozinho ao apagar um
+  // Client criaria um User com role=CLIENT e clientId NULL — violando a
+  // CHECK constraint acima por um caminho que não passa pela aplicação.
+  // Apagar um Client com usuários vinculados tem que falhar alto e forçar
+  // decisão explícita (ex.: reatribuir ou desativar os usuários primeiro).
+  client   Client? @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  clientId String?
+
+  active      Boolean   @default(true)
+  lastLoginAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  magicLinkTokens MagicLinkToken[]
+  sessions        Session[]
+
+  // Updates que este usuário (sempre staff, na Fase 1) escreveu. onDelete
+  // Restrict está no lado N (ProjectUpdate.author) de propósito: ver lá.
+  authoredUpdates ProjectUpdate[] @relation("ProjectUpdateAuthor")
+
+  // Consulta real: "listar os contatos de um Client" (tela do admin ao
+  // convidar/gerenciar acesso). Sem filtro por role aqui porque STAFF nunca
+  // tem clientId (é sempre NULL, não aparece neste índice por natureza).
+  @@index([clientId])
+}
+
+// A empresa contratante. Intake e Project pendem dela; User (quando CLIENT)
+// também.
+model Client {
+  id   String  @id @default(cuid())
+  name String // nome/marca como o cliente se identifica
+
+  // Dígitos apenas (14), normalizado pela aplicação. Nullable + @unique:
+  // Postgres permite múltiplos NULL num índice único, então vários clientes
+  // sem CNPJ cadastrado não colidem entre si.
+  cnpj String? @unique @db.VarChar(14)
+
+  segment        String?
+  city           String?
+  state          String? @db.VarChar(2) // UF
+  currentWebsite String?
+  instagram      String?
+  facebook       String?
+  linkedin       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users    User[]
+  intakes  Intake[]
+  projects Project[]
+}
+
+// ---------------------------------------------------------------------------
+// Intake → Projeto
+// ---------------------------------------------------------------------------
+
+// O briefing exatamente como chegou do formulário público. `payload` guarda
+// o corpo inteiro validado (contrato 4.2 da arquitetura) em JSONB;
+// `schemaVersion` existe porque o formulário VAI mudar de campos e não quero
+// migração de banco a cada pergunta nova — só colunas "promovidas"
+// (protocolo, status, clientId) ficam fora do JSON.
+model Intake {
+  id String @id @default(cuid())
+
+  // Protocolo legível mostrado ao lead (ex. "BRF-2026-0042"). Gerado pela
+  // aplicação; o banco só garante que não se repete.
+  protocol String @unique @db.VarChar(32)
+
+  schemaVersion Int
+  source        String  @db.VarChar(64) // ex. "solicitar-site"
+  payload       Json // o envelope completo: contact, company, briefing, consent
+
+  status IntakeStatus @default(NOVO)
+
+  // Consentimento LGPD — gravado como colunas (não dentro do JSON) porque é
+  // o campo que uma eventual auditoria/exportação de dados pessoais (D10)
+  // precisa achar sem abrir o JSONB.
+  consentAt          DateTime
+  consentTextVersion String   @db.VarChar(16) // ex. "2026-11"
+
+  // Hash (não o IP em claro) — dado pessoal minimizado por desenho. Serve só
+  // para detectar abuso/repetição, nunca para identificar a pessoa sozinho.
+  requestIpHash String? @db.VarChar(64)
+
+  // Chave do cabeçalho `Idempotency-Key` (contrato 4.2): reenvio do mesmo
+  // formulário (duplo clique, retry de rede) com a mesma chave não cria uma
+  // segunda linha. @unique é o que de fato impede a duplicata — a aplicação
+  // trata a violação de unicidade como "devolve o resultado já existente",
+  // não como erro 500.
+  idempotencyKey String? @unique @db.VarChar(64)
+
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId String
+
+  // Preenchido só na conversão (seção 5.3). SetNull: um Project nunca deveria
+  // ser apagado na prática, mas se um dia for, o Intake histórico não some.
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  projectId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clientId])
+  // Consulta real: fila de triagem do admin — "intakes com status X, mais
+  // recentes primeiro".
+  @@index([status, createdAt])
+}
+
+// O trabalho contratado. Nasce (quase sempre) da conversão de um Intake.
+model Project {
+  id String @id @default(cuid())
+
+  // Código legível (ex. "IC-2026-007"), gerado pela aplicação.
+  code  String      @unique @db.VarChar(32)
+  title String
+  type  ProjectType
+
+  status ProjectStatus @default(BRIEFING_RECEBIDO)
+
+  client   Client @relation(fields: [clientId], references: [id])
+  clientId String
+
+  expectedStartAt DateTime?
+  expectedEndAt   DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  intakes Intake[]
+  stages  ProjectStage[]
+  updates ProjectUpdate[]
+
+  // Consulta real: portal do cliente ("meus projetos, por status") e admin
+  // filtrando por cliente.
+  @@index([clientId, status])
+  // Consulta real: dashboard do admin ("todos os projetos ativos, por
+  // atividade recente"), sem filtro de cliente.
+  @@index([status, updatedAt])
+}
+
+// Uma etapa concreta de um projeto — LINHA, não enum (decisão 5 da
+// arquitetura): cada projeto nasce de um template por tipo (código do Vega,
+// Fase 1 só tem o template SITE) e o staff pode pular/renomear etapas DAQUELE
+// projeto sem precisar de migração de banco.
+model ProjectStage {
+  id String @id @default(cuid())
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+
+  // Posição de exibição dentro do projeto (0, 1, 2…). Único por projeto —
+  // é o que garante uma ordem sem ambiguidade para o portal renderizar a
+  // linha do tempo de fases/etapas.
+  order Int
+
+  // Slug estável da etapa (ex. "aprovacao_layout") — permite ao código do
+  // staff (`setStageState`) e ao template de seed referenciar a etapa certa
+  // sem depender do texto exibido (que pode ser renomeado).
+  key  String @db.VarChar(64)
+  name String // nome exibido ao staff e ao cliente
+
+  phase ProjectPhase
+
+  status StageStatus @default(PENDENTE)
+
+  // Etapas "em negrito" no template (ex. "Aprovação do layout pelo
+  // cliente") — pontos de aprovação que na Fase 4 ganham registro formal de
+  // quem aprovou e quando. Por ora é só um marcador de exibição.
+  isApprovalPoint Boolean @default(false)
+
+  expectedAt  DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  updates ProjectUpdate[]
+
+  // Cobre a consulta principal do portal/admin: "etapas do projeto X, em
+  // ordem" — e é a própria restrição de integridade (sem ordem duplicada).
+  @@unique([projectId, order])
+  // Permite buscar/atualizar uma etapa pelo slug estável sem precisar do id.
+  @@unique([projectId, key])
+  // Consulta real: "qual é a etapa EM_ANDAMENTO deste projeto" (destaque no
+  // portal e no admin).
+  @@index([projectId, status])
+}
+
+// A linha do tempo: tudo que acontece num projeto e pode (ou não) ser visto
+// pelo cliente. O risco crítico do produto (seção 8) mora neste `visibility`
+// — por isso o default é INTERNA (fail-closed: uma atualização esquecida
+// sem visibilidade explícita NUNCA aparece para o cliente por acidente).
+model ProjectUpdate {
+  id String @id @default(cuid())
+
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectId String
+
+  // SetNull (não Cascade): apagar/substituir uma etapa não deveria apagar o
+  // histórico de atualizações que a citaram.
+  stage   ProjectStage? @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  stageId String?
+
+  // Restrict de propósito: ao contrário de MagicLinkToken/Session (dados
+  // efêmeros de sessão, Cascade é correto), apagar um User não pode destruir
+  // silenciosamente a autoria do histórico de um projeto. Contas STAFF não
+  // têm tela de delete (só script), então isto nunca deveria disparar — se
+  // disparar, é um sinal de que a operação precisa ser repensada, não
+  // ignorada.
+  author   User   @relation("ProjectUpdateAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  authorId String
+
+  type UpdateType
+
+  visibility Visibility @default(INTERNA)
+
+  text String @db.Text
+
+  // Espaço de extensão livre (ex.: { fromStatus, toStatus } numa update do
+  // tipo STATUS) sem precisar de coluna nova por tipo de evento — mesma
+  // lógica de "não migrar a cada campo novo" do Intake.payload, mas aqui
+  // opcional porque a maioria das updates é só texto.
+  meta Json?
+
+  createdAt DateTime @default(now())
+
+  // Índice único desta tabela, cobrindo os dois padrões de leitura reais:
+  //  - Portal (filtro de segurança): WHERE projectId = ? AND visibility =
+  //    'CLIENTE' ORDER BY createdAt DESC
+  //  - Admin (vê tudo): WHERE projectId = ? ORDER BY createdAt DESC — ainda
+  //    usa o prefixo (projectId) deste mesmo índice composto.
+  // Não duplicar com um @@index([projectId, createdAt]) separado — seria
+  // redundante e só pagaria custo de escrita extra sem servir consulta nova.
+  @@index([projectId, visibility, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Autenticação (link mágico + sessão em banco)
+// ---------------------------------------------------------------------------
+
+// Token de login por link mágico. Só o HASH é persistido — o valor em claro
+// (32 bytes aleatórios) existe apenas no momento do envio por e-mail e nunca
+// é gravado (mesmo contrato do Painel de Missões: `Project.apiKeyHash`,
+// `ProjectShare.tokenHash`).
+model MagicLinkToken {
+  id String @id @default(cuid())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  tokenHash String @unique @db.VarChar(64) // SHA-256 hex
+
+  requestIp String? @db.VarChar(45) // IPv4 ou IPv6
+
+  expiresAt DateTime // TTL de 15 min, calculado pela aplicação na criação
+  usedAt    DateTime? // uso único — validar usedAt IS NULL além de expiresAt
+
+  createdAt DateTime @default(now())
+
+  // Consulta real: "invalidar tokens anteriores não usados deste usuário" ao
+  // emitir um novo link (seção 5.1).
+  @@index([userId])
+  // Consulta real: job periódico de limpeza/retenção de tokens expirados
+  // (dado efêmero de curta vida, mas ainda guarda IP — dado pessoal sob a
+  // LGPD; mesma decisão do `LoginCode.expiresAt` do Painel de Missões).
+  @@index([expiresAt])
+}
+
+// Sessão logada. Em banco (não JWT puro) de propósito — diferente do Painel:
+// aqui revogar o acesso de um cliente (ex. fim de contrato) precisa valer NA
+// HORA, e o custo de um SELECT por requisição é irrelevante nesta escala.
+model Session {
+  id String @id @default(cuid())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  tokenHash String @unique @db.VarChar(64) // SHA-256 hex do cookie opaco
+
+  userAgent String?
+
+  expiresAt  DateTime // 30 dias (cliente) ou 7 dias (staff) — regra da aplicação
+  revokedAt  DateTime? // revogação = carimbar aqui, nunca deletar a linha
+
+  createdAt DateTime @default(now())
+
+  // Consulta real: "sessões ativas deste usuário" (tela de segurança /
+  // "sair de todos os dispositivos").
+  @@index([userId])
+  // Consulta real: job periódico de limpeza de sessões expiradas.
+  @@index([expiresAt])
+}

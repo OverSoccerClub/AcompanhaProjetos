@@ -1,0 +1,32 @@
+# Ambiente de DESENVOLVIMENTO local — só o Postgres. Este repo, nesta fase, é
+# fundação de dados (schema/migração); o app Next.js que vai usá-lo roda fora
+# do Docker em dev (`npm run dev`, conforme o Vega montar). Produção é um
+# Postgres DEDICADO no VPS (ver seção 6.1 da arquitetura: banco próprio, sem
+# compartilhar credencial com o Painel de Missões) — este compose não
+# representa produção, só a conveniência de ter um Postgres local idêntico
+# em versão.
+#
+# Uso:
+#   docker compose up -d
+#   cp .env.example .env   # DATABASE_URL já aponta para localhost:5432
+#   npx prisma migrate deploy   # ou migrate dev, em desenvolvimento
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: acompanhe
+      POSTGRES_PASSWORD: acompanhe
+      POSTGRES_DB: acompanhe
+    ports:
+      - "5432:5432"
+    volumes:
+      - acompanhe_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U acompanhe"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  acompanhe_pgdata:

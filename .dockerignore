@@ -1,0 +1,24 @@
+# Segredos nunca entram no contexto de build.
+.env
+.env.*
+!.env.example
+
+# Build/artefatos locais — o build acontece dentro do container.
+.next
+node_modules
+coverage
+
+# Metadados que não pertencem à imagem.
+.git
+.gitignore
+.claude
+*.md
+!README.md
+
+# Prisma Client gerado — regenerado dentro do container (Linux), nunca
+# copiado do host (Windows/Mac) — ver comentário no Dockerfile.
+lib/generated
+
+# Estado de sessão do Painel de Missões, se este repo algum dia registrar.
+.missao-atual
+.missoes-quadro.json
