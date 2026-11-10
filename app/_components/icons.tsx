@@ -146,6 +146,26 @@ export function SearchIcon(props: IconProps) {
   );
 }
 
+export function EyeIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M2.5 12S5.8 5.5 12 5.5 21.5 12 21.5 12 18.2 18.5 12 18.5 2.5 12 2.5 12Z" />
+      <circle cx="12" cy="12" r="3" />
+    </Svg>
+  );
+}
+
+export function EyeOffIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M6.6 6.6A16.3 16.3 0 0 0 2.5 12S5.8 18.5 12 18.5a10.3 10.3 0 0 0 5.4-1.5" />
+      <path d="M9.9 5.1A10.4 10.4 0 0 1 12 5c6.2 0 9.5 6.5 9.5 6.5a16.2 16.2 0 0 1-3.1 4.1" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+      <path d="M3 3l18 18" />
+    </Svg>
+  );
+}
+
 export function AlertIcon(props: IconProps) {
   return (
     <Svg {...props}>

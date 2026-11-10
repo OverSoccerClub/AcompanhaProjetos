@@ -5,6 +5,7 @@
 // cliente como argumento confiável — a checagem de pertencimento (quando
 // aplicável) é feita consultando o registro pelo `id` antes de agir.
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { ProjectStatus, StageStatus, UpdateType, Visibility } from "@/lib/generated/prisma/enums";
 import { requireStaff } from "@/lib/session";
 import { requestMagicLink } from "@/lib/magic-link";
@@ -145,6 +146,43 @@ export async function inviteClientUser(clientId: string, email: string, name: st
 
   await requestMagicLink(user.email, null);
   return { userId: user.id };
+}
+
+export type DeleteProjectResult = { id: string; code: string };
+
+/** Exclui um Project e tudo que só existe em função dele (ProjectStage,
+ * ProjectUpdate) — NUNCA o Client, o User nem o Intake que o originou.
+ *
+ * O schema já declara `onDelete: Cascade` de ProjectStage e ProjectUpdate
+ * para Project, e `onDelete: SetNull` de Intake.projectId (ver migração
+ * `20261110121453_init`) — então um único `prisma.project.delete` já apaga
+ * as etapas/atualizações em cascata no banco e só desvincula o Intake
+ * histórico (ele continua existindo, sem projeto). Não há FK de volta para
+ * Client/User a partir daqui, então nada além do Project é tocado.
+ *
+ * Idempotente no sentido de convergência de estado: a primeira chamada
+ * apaga; uma repetição (duplo clique, retry) encontra o projeto já
+ * ausente e falha com "Projeto não encontrado" — não há efeito duplicado
+ * possível numa exclusão. */
+export async function deleteProject(projectId: string): Promise<DeleteProjectResult> {
+  await requireStaff();
+
+  if (typeof projectId !== "string" || projectId.trim().length < 1) {
+    throw new Error("Id de projeto inválido.");
+  }
+
+  try {
+    const deleted = await prisma.project.delete({
+      where: { id: projectId },
+      select: { id: true, code: true },
+    });
+    return deleted;
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") {
+      throw new Error("Projeto não encontrado.");
+    }
+    throw err;
+  }
 }
 
 export type ListProjectsInput = {

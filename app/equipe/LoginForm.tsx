@@ -12,7 +12,7 @@
 // nativo).
 import { useId, useState } from "react";
 import { SubmitButton } from "@/app/_components/SubmitButton";
-import { MailIcon, LockIcon, ArrowRightIcon } from "@/app/_components/icons";
+import { MailIcon, LockIcon, ArrowRightIcon, EyeIcon, EyeOffIcon } from "@/app/_components/icons";
 
 export function LoginForm() {
   const emailId = useId();
@@ -21,6 +21,7 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,12 +77,12 @@ export function LoginForm() {
       </div>
       <div className="field">
         <label htmlFor={passwordId}>Senha</label>
-        <div className="input-wrap">
+        <div className="input-wrap has-toggle">
           <LockIcon />
           <input
             id={passwordId}
             name="password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             className="input"
             required
             autoComplete="current-password"
@@ -89,6 +90,15 @@ export function LoginForm() {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
           />
+          <button
+            type="button"
+            className="input-toggle"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+            aria-pressed={showPassword}
+          >
+            {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
         </div>
         {error && (
           <p className="error-msg" id={`${emailId}-error`} role="alert">

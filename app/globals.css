@@ -496,6 +496,47 @@ textarea.input {
   padding-left: 38px;
 }
 
+/* Toggle de "mostrar senha" — fica do lado direito, por isso precisa
+   anular a regra genérica `.input-wrap svg` (ícone à esquerda,
+   pointer-events: none) com maior especificidade. */
+.input-wrap .input-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  translate: 0 -50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.input-wrap .input-toggle:hover {
+  color: var(--ink);
+  background: var(--surface-sunken);
+}
+
+.input-wrap .input-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--focus) 22%, transparent);
+}
+
+.input-wrap .input-toggle svg {
+  position: static;
+  translate: none;
+  pointer-events: auto;
+  color: inherit;
+}
+
+.input-wrap.has-toggle .input {
+  padding-right: 38px;
+}
+
 .input::placeholder {
   color: var(--ink-3);
 }

@@ -14,6 +14,7 @@ import { ProjectStatusForm } from "./ProjectStatusForm";
 import { StageControl } from "./StageControl";
 import { AddUpdateForm } from "./AddUpdateForm";
 import { InviteClientForm } from "./InviteClientForm";
+import { DeleteProjectForm } from "./DeleteProjectForm";
 
 export const metadata: Metadata = { title: "Projeto — Admin — Innovare Acompanhe" };
 
@@ -118,6 +119,15 @@ export default async function AdminProjectDetailPage({ params }: { params: Promi
             </div>
           </section>
         </div>
+      </div>
+
+      {/* Zona de risco — deliberadamente separada e discreta, longe das
+          ações comuns de cima (status, atualização, convite). */}
+      <div style={{ marginTop: 32, paddingTop: 20, borderTop: "1px solid var(--line)" }}>
+        <p className="section-hint" style={{ marginBottom: 10 }}>
+          Ação permanente — exclui o projeto, suas etapas e atualizações.
+        </p>
+        <DeleteProjectForm projectId={project.id} projectLabel={`${project.code} — ${project.title}`} />
       </div>
     </AdminShell>
   );
