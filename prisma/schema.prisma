@@ -114,6 +114,8 @@ enum Visibility {
 //   3. email DEVE estar em minúsculas (email = lower(email)) — a app
 //      normaliza antes de gravar; se esquecer, o INSERT/UPDATE falha em vez
 //      de criar um duplicado funcional ("Ana@x.com" vs "ana@x.com").
+//   4. role = CLIENT → passwordHash DEVE ser NULL (cliente só entra por link
+//      mágico; staff pode ter senha OU continuar só por link mágico).
 // Ver prisma/migrations/<timestamp>_init/migration.sql para o SQL exato.
 model User {
   id    String @id @default(cuid())
@@ -122,6 +124,13 @@ model User {
   phone String?
 
   role Role
+
+  // Hash scrypt (ver lib/crypto.ts) da senha — só para role = STAFF (ver CHECK
+  // constraint abaixo). CLIENT nunca tem senha: continua só por link mágico
+  // (seção 5.1/5.2). Nullable mesmo para STAFF: a conta nasce sem senha
+  // (`create-staff.ts` sem --password) e pode logar só por link mágico até
+  // alguém definir uma — "tem senha" não é pré-condição de "é staff".
+  passwordHash String? @db.VarChar(255)
 
   // Só preenchido para role = CLIENT (ver CHECK constraint acima). Tabela de
   // vínculo (ex. ClientMember) é dívida consciente para o dia em que um

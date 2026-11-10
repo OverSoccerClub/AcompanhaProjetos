@@ -86,10 +86,22 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 # DEPOIS do `.next/standalone` para o node_modules completo prevalecer
 # sobre o subconjunto que o standalone já traz. Imagem final maior;
 # aceitável, confiabilidade do deploy > tamanho da imagem.
-COPY --from=builder --chown=nextjs:nodejs /app/lib/generated ./lib/generated
+#
+# `/app/lib` INTEIRO (não só lib/generated): `scripts/create-staff.ts` roda
+# via `tsx` (não passa pelo build do Next, que só traça o que o SERVIDOR
+# usa) e importa `lib/prisma.ts`/`lib/crypto.ts` como TypeScript fonte —
+# sem isso, `npm run create-staff` falhava em produção com "Cannot find
+# module /app/scripts/create-staff.ts" (scripts/ nem existia na imagem) e,
+# mesmo corrigindo só scripts/, falharia de novo em "Cannot find module
+# '../lib/prisma'". `tsx`/`dotenv` (devDependencies) já vêm no
+# node_modules completo copiado abaixo — o stage `deps` instala com
+# `npm install` sem `--production`.
+COPY --from=builder --chown=nextjs:nodejs /app/lib ./lib
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
+COPY --from=builder --chown=nextjs:nodejs /app/tsconfig.json ./tsconfig.json
 COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
 
 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./docker-entrypoint.sh

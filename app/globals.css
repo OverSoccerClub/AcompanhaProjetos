@@ -663,6 +663,14 @@ fieldset legend {
   border: 1px solid var(--line);
 }
 
+/* Lista legível de valores de checkbox (briefing do intake) — cada opção
+   marcada vira um chip, em vez de uma string "a, b, c" corrida. */
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .alert {
   display: flex;
   gap: 10px;
@@ -1032,6 +1040,38 @@ a.list-item:hover {
 
 .sent b {
   display: block;
+}
+
+.auth-alt {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.auth-alt summary {
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  list-style: none;
+}
+
+.auth-alt summary::-webkit-details-marker {
+  display: none;
+}
+
+.auth-alt summary:hover,
+.auth-alt summary:focus-visible {
+  color: var(--brand-ink);
+}
+
+.auth-alt[open] summary {
+  color: var(--brand-ink);
+}
+
+.auth-alt-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
 }
 
 @media (max-width: 1000px) {

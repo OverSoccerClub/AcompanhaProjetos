@@ -13,14 +13,73 @@ import { IntakeStatus } from "@/lib/generated/prisma/enums";
 
 export const metadata: Metadata = { title: "Intake — Admin — Innovare Acompanhe" };
 
-function briefingValue(value: string | string[]): string {
-  return Array.isArray(value) ? value.join(", ") : value;
-}
+// Rótulos amigáveis para as chaves de `payload.briefing` — espelham os
+// `name` dos campos em js/solicitar-site.js (site). Chave desconhecida
+// (ex.: campo novo que o site passou a enviar) cai no fallback automático
+// em vez de desaparecer — ver `briefingLabel`.
+const BRIEFING_LABELS: Record<string, string> = {
+  objetivo_principal: "Objetivo principal",
+  publico_alvo: "Público-alvo",
+  acao_principal: "Ação principal esperada",
+  tem_logo: "Já tem logotipo?",
+  cores_da_marca: "Cores da marca",
+  estilo_desejado: "Estilo desejado",
+  referencias: "Referências / sites admirados",
+  paginas_desejadas: "Páginas desejadas",
+  destaques: "Destaques (o que não pode faltar)",
+  textos_prontos: "Textos já estão prontos?",
+  fotos: "Fotos próprias disponíveis?",
+  funcoes_extras: "Funções extras",
+  dominio: "Domínio desejado",
+  contas_de_email: "Contas de e-mail profissional",
+  prazo_desejado: "Prazo desejado",
+  investimento: "Faixa de investimento",
+  como_conheceu: "Como conheceu a Innovare Code",
+  observacoes: "Observações livres",
+};
+
+// Blocos 3 a 7 do formulário do site (1 e 2 já viram as seções "Contato" e
+// "Empresa" acima). Mantém a mesma ordem e agrupamento que o cliente viu ao
+// preencher — ajuda o time a revisar o briefing na mesma "forma mental".
+const BRIEFING_BLOCKS: { title: string; keys: string[] }[] = [
+  { title: "Objetivo do site", keys: ["objetivo_principal", "publico_alvo", "acao_principal"] },
+  { title: "Identidade visual", keys: ["tem_logo", "cores_da_marca", "estilo_desejado", "referencias"] },
+  {
+    title: "Conteúdo e estrutura",
+    keys: ["paginas_desejadas", "destaques", "textos_prontos", "fotos", "funcoes_extras"],
+  },
+  { title: "Domínio e e-mail", keys: ["dominio", "contas_de_email"] },
+  {
+    title: "Prazo, investimento e observações",
+    keys: ["prazo_desejado", "investimento", "como_conheceu", "observacoes"],
+  },
+];
 
 function briefingLabel(key: string): string {
-  return key
-    .replace(/_/g, " ")
-    .replace(/^./, (c) => c.toUpperCase());
+  return (
+    BRIEFING_LABELS[key] ??
+    key.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase())
+  );
+}
+
+function hasValue(value: string | string[] | undefined): value is string | string[] {
+  if (value === undefined) return false;
+  return Array.isArray(value) ? value.length > 0 : value.trim().length > 0;
+}
+
+function BriefingValue({ value }: { value: string | string[] }) {
+  if (Array.isArray(value)) {
+    return (
+      <div className="chip-row">
+        {value.map((item) => (
+          <span key={item} className="chip">
+            {item}
+          </span>
+        ))}
+      </div>
+    );
+  }
+  return <>{value}</>;
 }
 
 export default async function AdminIntakeDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -31,7 +90,7 @@ export default async function AdminIntakeDetailPage({ params }: { params: Promis
 
   const payload = intake.payload as unknown as ValidatedIntakePayload;
   const meta = metaOrFallback(INTAKE_STATUS_META, intake.status);
-  const briefingEntries = Object.entries(payload.briefing ?? {});
+  const briefing = payload.briefing ?? {};
 
   return (
     <AdminShell active="intakes" staffName={staff.name}>
@@ -62,16 +121,46 @@ export default async function AdminIntakeDetailPage({ params }: { params: Promis
                 <dt>Segmento</dt>
                 <dd>{payload.company.segmento}</dd>
               </div>
+              {payload.company.cnpj && (
+                <div>
+                  <dt>CNPJ</dt>
+                  <dd>{payload.company.cnpj}</dd>
+                </div>
+              )}
               {payload.company.cidade_uf && (
                 <div>
                   <dt>Cidade/UF</dt>
                   <dd>{payload.company.cidade_uf}</dd>
                 </div>
               )}
+              {payload.company.tempo_de_mercado && (
+                <div>
+                  <dt>Tempo de mercado</dt>
+                  <dd>{payload.company.tempo_de_mercado}</dd>
+                </div>
+              )}
               {payload.company.site_atual && (
                 <div>
                   <dt>Site atual</dt>
                   <dd>{payload.company.site_atual}</dd>
+                </div>
+              )}
+              {payload.company.instagram && (
+                <div>
+                  <dt>Instagram</dt>
+                  <dd>{payload.company.instagram}</dd>
+                </div>
+              )}
+              {payload.company.facebook && (
+                <div>
+                  <dt>Facebook</dt>
+                  <dd>{payload.company.facebook}</dd>
+                </div>
+              )}
+              {payload.company.linkedin && (
+                <div>
+                  <dt>LinkedIn</dt>
+                  <dd>{payload.company.linkedin}</dd>
                 </div>
               )}
               <div style={{ gridColumn: "1 / -1" }}>
@@ -107,21 +196,30 @@ export default async function AdminIntakeDetailPage({ params }: { params: Promis
             </dl>
           </section>
 
-          {briefingEntries.length > 0 && (
-            <section className="card card-pad" aria-labelledby="briefing-heading">
-              <h2 id="briefing-heading" className="section-title">
-                Briefing
-              </h2>
-              <dl className="kv-grid" style={{ marginTop: 12 }}>
-                {briefingEntries.map(([key, value]) => (
-                  <div key={key}>
-                    <dt>{briefingLabel(key)}</dt>
-                    <dd>{briefingValue(value)}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-          )}
+          {BRIEFING_BLOCKS.map((block) => {
+            const entries = block.keys
+              .map((key) => [key, briefing[key]] as const)
+              .filter((entry): entry is [string, string | string[]] => hasValue(entry[1]));
+            if (entries.length === 0) return null;
+            const headingId = `briefing-${block.title.replace(/\s+/g, "-").toLowerCase()}`;
+            return (
+              <section key={block.title} className="card card-pad" aria-labelledby={headingId}>
+                <h2 id={headingId} className="section-title">
+                  {block.title}
+                </h2>
+                <dl className="kv-grid" style={{ marginTop: 12 }}>
+                  {entries.map(([key, value]) => (
+                    <div key={key}>
+                      <dt>{briefingLabel(key)}</dt>
+                      <dd>
+                        <BriefingValue value={value} />
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            );
+          })}
         </div>
 
         <aside className="card card-pad">

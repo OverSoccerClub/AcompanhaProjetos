@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { LoginForm } from "./LoginForm";
 import { RequestLinkForm } from "./RequestLinkForm";
 import { EnterButton } from "./EnterButton";
 import { LockIcon } from "@/app/_components/icons";
@@ -74,8 +75,8 @@ export default async function EntrarPage({
               </>
             ) : (
               <>
-                <h1>Acessar o portal</h1>
-                <p className="lead">Informe seu e-mail cadastrado para receber um link de acesso.</p>
+                <h1>Acessar sua conta</h1>
+                <p className="lead">Equipe InnovareCode: entre com e-mail e senha. Cliente: use o link mágico abaixo.</p>
               </>
             )}
           </div>
@@ -86,7 +87,23 @@ export default async function EntrarPage({
               <EnterButton token={token} />
             </form>
           ) : (
-            <RequestLinkForm />
+            <LoginForm />
+          )}
+
+          {!token && (
+            // <details> nativo: expande/recolhe SEM depender de JavaScript
+            // (semântica de disclosure do próprio HTML) — a alternativa de
+            // login por link mágico (clientes, ou staff sem senha definida)
+            // fica fora do caminho principal sem exigir uma rota/página nova.
+            <details className="auth-alt">
+              <summary>Prefere entrar por link mágico?</summary>
+              <div className="auth-alt-body">
+                <p className="hint">
+                  Informe seu e-mail cadastrado para receber um link de acesso — sem senha.
+                </p>
+                <RequestLinkForm />
+              </div>
+            </details>
           )}
 
           <div className="secure-note">
@@ -97,10 +114,7 @@ export default async function EntrarPage({
                 <a href="/entrar">peça um novo link</a>.
               </span>
             ) : (
-              <span>
-                O link vale por <b className="mono">15 min</b> e funciona uma única vez. Não pediremos sua senha por
-                e-mail.
-              </span>
+              <span>Sua senha nunca é pedida por e-mail. O link mágico vale por 15 min e funciona uma única vez.</span>
             )}
           </div>
         </div>
