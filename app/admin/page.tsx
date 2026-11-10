@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireStaff } from "@/lib/session";
-import { listIntakes, getIntakeStatusCounts } from "@/app/actions/intake-admin";
+import { listIntakes, getIntakeStatusCounts, deleteIntake } from "@/app/actions/intake-admin";
 import { IntakeStatus } from "@/lib/generated/prisma/enums";
 import { AdminShell } from "./_components/AdminShell";
 import { StatusBadge } from "@/app/_components/StatusBadge";
 import { Avatar } from "@/app/_components/Avatar";
 import { EmptyState } from "@/app/_components/EmptyState";
 import { LiveRefresh } from "@/app/_components/LiveRefresh";
+import { Pagination } from "@/app/_components/Pagination";
+import { PageSizeSelect } from "@/app/_components/PageSizeSelect";
+import { RowDeleteButton } from "@/app/_components/RowDeleteButton";
 import { formatDate } from "@/app/_components/format";
 import { INTAKE_STATUS_META, metaOrFallback } from "@/app/_components/status-maps";
 import { SearchIcon, ArrowRightIcon } from "@/app/_components/icons";
@@ -41,14 +44,14 @@ function queryString(params: Record<string, string | undefined>): string {
 export default async function AdminIntakesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; cursor?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; page?: string; pageSize?: string }>;
 }) {
   const staff = await requireStaff();
-  const { status: filterKey, q, cursor } = await searchParams;
+  const { status: filterKey, q, page: pageParam, pageSize: pageSizeParam } = await searchParams;
   const activeFilter = FILTERS.find((f) => f.key === filterKey) ?? FILTERS[0];
 
-  const [{ items, nextCursor }, counts] = await Promise.all([
-    listIntakes({ status: activeFilter.status as never, q, cursor, limit: 20 }),
+  const [{ items, total: filteredTotal, page, pageSize }, counts] = await Promise.all([
+    listIntakes({ status: activeFilter.status as never, q, page: Number(pageParam), pageSize: Number(pageSizeParam) }),
     getIntakeStatusCounts(),
   ]);
 
@@ -100,7 +103,7 @@ export default async function AdminIntakesPage({
               return (
                 <Link
                   key={filter.key}
-                  href={`/admin${queryString({ status: filter.key === "todos" ? undefined : filter.key, q })}`}
+                  href={`/admin${queryString({ status: filter.key === "todos" ? undefined : filter.key, q, pageSize: String(pageSize) })}`}
                   className="pill"
                   aria-current={filter.key === activeFilter.key ? "page" : undefined}
                 >
@@ -111,6 +114,7 @@ export default async function AdminIntakesPage({
           </div>
           <form method="GET" action="/admin" className="input-wrap search">
             {activeFilter.key !== "todos" && <input type="hidden" name="status" value={activeFilter.key} />}
+            <input type="hidden" name="pageSize" value={pageSize} />
             <SearchIcon />
             <input className="input" type="search" name="q" defaultValue={q} placeholder="Buscar por empresa" />
           </form>
@@ -130,7 +134,7 @@ export default async function AdminIntakesPage({
                   <th>Recebido</th>
                   <th>Status</th>
                   <th>
-                    <span className="sr-only">Abrir</span>
+                    <span className="sr-only">Ações</span>
                   </th>
                 </tr>
               </thead>
@@ -154,9 +158,21 @@ export default async function AdminIntakesPage({
                         <StatusBadge label={meta.label} tone={meta.tone} />
                       </td>
                       <td>
-                        <span className="go">
-                          <ArrowRightIcon />
-                        </span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 4, justifyContent: "flex-end" }}>
+                          <span className="go">
+                            <ArrowRightIcon />
+                          </span>
+                          <RowDeleteButton
+                            label={`Excluir briefing de ${intake.client.name}`}
+                            confirmText={
+                              <>
+                                Tem certeza? Isso exclui definitivamente o briefing de <strong>{intake.client.name}</strong>{" "}
+                                ({intake.protocol}). Não pode ser desfeito.
+                              </>
+                            }
+                            onDelete={deleteIntake.bind(null, intake.id)}
+                          />
+                        </div>
                       </td>
                     </tr>
                   );
@@ -167,15 +183,25 @@ export default async function AdminIntakesPage({
         )}
 
         <div className="table-foot">
-          <span>Mostrando {items.length} de {activeFilter.status ? counts[activeFilter.status] ?? 0 : total}</span>
-          {nextCursor && (
-            <Link
-              href={`/admin${queryString({ status: activeFilter.key === "todos" ? undefined : activeFilter.key, q, cursor: nextCursor })}`}
-              className="btn btn-secondary btn-sm"
-            >
-              Carregar mais
-            </Link>
-          )}
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={filteredTotal}
+            hrefFor={(p) =>
+              `/admin${queryString({
+                status: activeFilter.key === "todos" ? undefined : activeFilter.key,
+                q,
+                page: String(p),
+                pageSize: String(pageSize),
+              })}`
+            }
+          />
+          <PageSizeSelect
+            value={pageSize}
+            basePath="/admin"
+            status={activeFilter.key === "todos" ? undefined : activeFilter.key}
+            q={q}
+          />
         </div>
       </section>
     </AdminShell>

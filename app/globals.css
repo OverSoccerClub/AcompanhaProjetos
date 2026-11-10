@@ -2231,6 +2231,106 @@ td.mono {
   flex-wrap: wrap;
 }
 
+/* Paginação (Anterior/Próxima + "Página X de Y") dentro do .table-foot */
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.pager-info {
+  white-space: nowrap;
+}
+
+.pager-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pager-page {
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+/* "Registros por página" */
+.page-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: 12px var(--font-body);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.select-sm {
+  height: 32px;
+  width: auto;
+  padding: 0 10px;
+  font-size: 13px;
+  border-radius: var(--r-sm);
+}
+
+/* Excluir por linha (briefings e projetos) — botão discreto + painel de
+   confirmação que fica no fluxo normal da célula (nunca `position:absolute`,
+   que o `.table-wrap { overflow-x: auto }` cortaria). */
+.row-delete {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.row-delete-trigger {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.row-delete-trigger:hover {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.row-delete-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--focus) 22%, transparent);
+}
+
+.row-delete-panel {
+  margin-top: 10px;
+  width: 240px;
+  text-align: left;
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  padding: 12px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  box-shadow: var(--shadow-1);
+}
+
+.row-delete-error {
+  color: var(--danger);
+  font-weight: 500;
+  margin-top: 6px;
+}
+
+.row-delete-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 @media (max-width: 1000px) {
   .app {
     grid-template-columns: minmax(0, 1fr);

@@ -20,6 +20,7 @@ vi.mock("@/lib/session", () => sessionMock);
 
 let prisma: typeof import("@/lib/prisma").prisma;
 let deleteProject: typeof import("./project-admin").deleteProject;
+let listProjectsForAdmin: typeof import("./project-admin").listProjectsForAdmin;
 
 const STAFF_SESSION = { id: "qa-staff-session", email: "qa-staff@innovarecode.com.br", name: "QA Staff", role: "STAFF" as const, clientId: null, active: true };
 
@@ -30,7 +31,7 @@ const cleanupIntakeIds: string[] = [];
 
 beforeAll(async () => {
   ({ prisma } = await import("@/lib/prisma"));
-  ({ deleteProject } = await import("./project-admin"));
+  ({ deleteProject, listProjectsForAdmin } = await import("./project-admin"));
 
   await prisma.client.create({ data: { id: clientId, name: "QA Cliente DeleteProject" } });
   const staff = await prisma.user.create({
@@ -128,5 +129,70 @@ describe("deleteProject — STAFF autenticado", () => {
   it("projectId vazio/inválido falha sem tocar o banco", async () => {
     sessionMock.requireStaff.mockResolvedValue(STAFF_SESSION);
     await expect(deleteProject("")).rejects.toThrow("Id de projeto inválido.");
+  });
+});
+
+describe("listProjectsForAdmin — paginação por OFFSET com total", () => {
+  // Client e código próprios desta suíte — o filtro `q` usa `contains` por
+  // nome do cliente, então um nome compartilhado inflaria o `total`.
+  const pagingClientId = qaId("client-paging");
+  const marker = qaId("marker");
+  const pagingProjectIds: string[] = [];
+
+  beforeAll(async () => {
+    sessionMock.requireStaff.mockResolvedValue(STAFF_SESSION);
+    await prisma.client.create({ data: { id: pagingClientId, name: `QA Paginação Projetos ${marker}` } });
+    for (let i = 0; i < 11; i++) {
+      const project = await prisma.project.create({
+        data: {
+          code: qaId(`IC-PAG-${i}`),
+          title: `Projeto paginação ${i}`,
+          type: "SITE",
+          status: i === 0 ? "CONCLUIDO" : "EM_ANDAMENTO",
+          clientId: pagingClientId,
+        },
+      });
+      pagingProjectIds.push(project.id);
+    }
+  });
+
+  afterAll(async () => {
+    await prisma.project.deleteMany({ where: { id: { in: pagingProjectIds } } });
+    await prisma.client.deleteMany({ where: { id: pagingClientId } });
+  });
+
+  it("pageSize default (25) traz tudo numa página só e total bate com a contagem real", async () => {
+    const result = await listProjectsForAdmin({ q: marker });
+    expect(result.page).toBe(1);
+    expect(result.pageSize).toBe(25);
+    expect(result.total).toBe(11);
+    expect(result.items).toHaveLength(11);
+  });
+
+  it("pageSize=10 (allowlist) pagina corretamente (page 1 e page 2 não se repetem) e total continua 11", async () => {
+    const page1 = await listProjectsForAdmin({ q: marker, page: 1, pageSize: 10 });
+    const page2 = await listProjectsForAdmin({ q: marker, page: 2, pageSize: 10 });
+
+    expect(page1.total).toBe(11);
+    expect(page1.items).toHaveLength(10);
+    expect(page2.total).toBe(11);
+    expect(page2.items).toHaveLength(1);
+
+    const ids1 = new Set(page1.items.map((p) => p.id));
+    const ids2 = new Set(page2.items.map((p) => p.id));
+    expect([...ids1].some((id) => ids2.has(id))).toBe(false);
+  });
+
+  it("filtro de status combinado com q reduz o total (não é o total geral da tabela)", async () => {
+    const result = await listProjectsForAdmin({ q: marker, status: "CONCLUIDO" as never });
+    expect(result.total).toBe(1);
+    expect(result.items).toHaveLength(1);
+  });
+
+  it("pageSize fora da allowlist cai no default, e page inválida cai em 1 — sem lançar", async () => {
+    const result = await listProjectsForAdmin({ q: marker, page: -1, pageSize: 999 });
+    expect(result.page).toBe(1);
+    expect(result.pageSize).toBe(25);
+    expect(result.total).toBe(11);
   });
 });

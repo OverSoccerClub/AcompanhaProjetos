@@ -9,6 +9,7 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { ProjectStatus, StageStatus, UpdateType, Visibility } from "@/lib/generated/prisma/enums";
 import { requireStaff } from "@/lib/session";
 import { requestMagicLink } from "@/lib/magic-link";
+import { normalizePagination, type PaginationInput } from "@/lib/pagination";
 
 /** Muda o status macro do projeto e grava um ProjectUpdate do tipo STATUS.
  * `noteForClient`, se informado, publica a nota com visibility=CLIENTE;
@@ -185,32 +186,37 @@ export async function deleteProject(projectId: string): Promise<DeleteProjectRes
   }
 }
 
-export type ListProjectsInput = {
+export type ListProjectsInput = PaginationInput & {
   status?: (typeof ProjectStatus)[keyof typeof ProjectStatus];
   /** Busca simples por nome do cliente (contains, case-insensitive). */
   q?: string;
-  cursor?: string;
-  limit?: number;
 };
 
 /** Lista os projetos para a tela de admin (sem filtro de cliente por
- * padrão, com paginação — nunca "todos os projetos" sem limite). */
+ * padrão), paginada por OFFSET com `total` — nunca "todos os projetos" sem
+ * limite. `total` reflete o MESMO `where` da página (filtro/busca
+ * preservados), não o total geral da tabela. */
 export async function listProjectsForAdmin(input: ListProjectsInput = {}) {
   await requireStaff();
-  const take = Math.min(Math.max(input.limit ?? 20, 1), 50);
+  const { page, pageSize, skip } = normalizePagination(input);
   const q = input.q?.trim();
-  const items = await prisma.project.findMany({
-    where: {
-      ...(input.status && { status: input.status }),
-      ...(q && { client: { name: { contains: q, mode: "insensitive" } } }),
-    },
-    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-    take: take + 1,
-    ...(input.cursor && { cursor: { id: input.cursor }, skip: 1 }),
-    select: { id: true, code: true, title: true, status: true, updatedAt: true, client: { select: { name: true } } },
-  });
-  const hasMore = items.length > take;
-  return { items: items.slice(0, take), nextCursor: hasMore ? items[take].id : null };
+  const where: Prisma.ProjectWhereInput = {
+    ...(input.status && { status: input.status }),
+    ...(q && { client: { name: { contains: q, mode: "insensitive" } } }),
+  };
+
+  const [items, total] = await Promise.all([
+    prisma.project.findMany({
+      where,
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      skip,
+      take: pageSize,
+      select: { id: true, code: true, title: true, status: true, updatedAt: true, client: { select: { name: true } } },
+    }),
+    prisma.project.count({ where }),
+  ]);
+
+  return { items, total, page, pageSize };
 }
 
 /** Contagem de projetos por status (KPIs do admin — §6.12). Uma única query

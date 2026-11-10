@@ -5,50 +5,52 @@
 // linha — a checagem de ROLE (não só "está logado") é o que impede um
 // CLIENT de disparar uma conversão mesmo adivinhando o nome da action.
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/lib/generated/prisma/client";
 import { IntakeStatus, ProjectStatus, UpdateType, Visibility } from "@/lib/generated/prisma/enums";
 import { requireStaff } from "@/lib/session";
 import { generateProjectCode } from "@/lib/ids";
 import { applyStageTemplate } from "@/lib/stage-template";
 import { requestMagicLink } from "@/lib/magic-link";
+import { normalizePagination, type PaginationInput } from "@/lib/pagination";
 
-export type ListIntakesInput = {
+export type ListIntakesInput = PaginationInput & {
   status?: (typeof IntakeStatus)[keyof typeof IntakeStatus];
   /** Busca simples por nome do cliente (contains, case-insensitive) — só
    * filtra, não ordena por relevância. */
   q?: string;
-  cursor?: string;
-  limit?: number;
 };
 
-const MAX_LIST_LIMIT = 50;
-const DEFAULT_LIST_LIMIT = 20;
-
-/** Fila de triagem — sempre paginada (nunca "todos os intakes"). */
+/** Fila de triagem — sempre paginada por OFFSET (nunca "todos os intakes").
+ * `total` reflete o MESMO `where` da página (filtro/busca preservados), não
+ * o total geral da tabela. */
 export async function listIntakes(input: ListIntakesInput = {}) {
   await requireStaff();
-  const limit = Math.min(Math.max(input.limit ?? DEFAULT_LIST_LIMIT, 1), MAX_LIST_LIMIT);
+  const { page, pageSize, skip } = normalizePagination(input);
   const q = input.q?.trim();
+  const where: Prisma.IntakeWhereInput = {
+    ...(input.status && { status: input.status }),
+    ...(q && { client: { name: { contains: q, mode: "insensitive" } } }),
+  };
 
-  const items = await prisma.intake.findMany({
-    where: {
-      ...(input.status && { status: input.status }),
-      ...(q && { client: { name: { contains: q, mode: "insensitive" } } }),
-    },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: limit + 1,
-    ...(input.cursor && { cursor: { id: input.cursor }, skip: 1 }),
-    select: {
-      id: true,
-      protocol: true,
-      status: true,
-      source: true,
-      createdAt: true,
-      client: { select: { id: true, name: true } },
-    },
-  });
+  const [items, total] = await Promise.all([
+    prisma.intake.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      skip,
+      take: pageSize,
+      select: {
+        id: true,
+        protocol: true,
+        status: true,
+        source: true,
+        createdAt: true,
+        client: { select: { id: true, name: true } },
+      },
+    }),
+    prisma.intake.count({ where }),
+  ]);
 
-  const hasMore = items.length > limit;
-  return { items: items.slice(0, limit), nextCursor: hasMore ? items[limit].id : null };
+  return { items, total, page, pageSize };
 }
 
 /** Contagem de intakes por status (KPIs e pílulas de filtro do admin — §6.12
@@ -161,4 +163,38 @@ export async function convertIntake(intakeId: string, input: ConvertIntakeInput)
   }
 
   return { projectId: project.id, projectCode: project.code };
+}
+
+export type DeleteIntakeResult = { id: string; protocol: string };
+
+/** Exclui um Intake (descartado por engano, lixo de teste, etc). Diferente
+ * de `deleteProject`: aqui é o INTAKE que some, não o Project. O schema não
+ * tem nenhuma FK apontando PARA Intake — é Intake.projectId → Project
+ * (onDelete: SetNull, migração `20261110121453_init`), sentido contrário —
+ * então um Project já convertido a partir deste intake NUNCA é tocado por
+ * este delete; ele só perde a origem histórica (o `project.projectId` do
+ * intake deixa de existir junto com a linha, mas o Project não referencia o
+ * Intake de volta, então não há nada para desvincular nele).
+ *
+ * Idempotente por convergência (mesmo padrão de `deleteProject`): a primeira
+ * chamada apaga; um retry/duplo-clique encontra o registro já ausente e
+ * falha com "Intake não encontrado" — nunca um efeito duplicado. */
+export async function deleteIntake(intakeId: string): Promise<DeleteIntakeResult> {
+  await requireStaff();
+
+  if (typeof intakeId !== "string" || intakeId.trim().length < 1) {
+    throw new Error("Id de intake inválido.");
+  }
+
+  try {
+    return await prisma.intake.delete({
+      where: { id: intakeId },
+      select: { id: true, protocol: true },
+    });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") {
+      throw new Error("Intake não encontrado.");
+    }
+    throw err;
+  }
 }
