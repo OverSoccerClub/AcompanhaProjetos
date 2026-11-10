@@ -5,6 +5,7 @@ import { listPortalProjects, getClientName } from "@/lib/portal-data";
 import { PortalShell } from "./_components/PortalShell";
 import { StatusBadge } from "@/app/_components/StatusBadge";
 import { EmptyState } from "@/app/_components/EmptyState";
+import { LiveRefresh } from "@/app/_components/LiveRefresh";
 import { formatDate } from "@/app/_components/format";
 import { PROJECT_STATUS_META, metaOrFallback } from "@/app/_components/status-maps";
 
@@ -26,6 +27,7 @@ export default async function PortalHomePage() {
           <h1>Seus projetos</h1>
           <p className="section-hint">Acompanhe o andamento de cada projeto com a InnovareCode.</p>
         </div>
+        <LiveRefresh />
       </div>
 
       {projects.length === 0 ? (

@@ -9,6 +9,7 @@ import { PhaseTimeline, projectProgress } from "@/app/_components/PhaseTimeline"
 import { ProjectSummary } from "@/app/_components/ProjectSummary";
 import { ApprovalCallout } from "@/app/_components/ApprovalCallout";
 import { UpdatesList } from "@/app/_components/UpdatesList";
+import { LiveRefresh } from "@/app/_components/LiveRefresh";
 import { formatDateTime } from "@/app/_components/format";
 import { PROJECT_STATUS_META, metaOrFallback } from "@/app/_components/status-maps";
 
@@ -44,7 +45,10 @@ export default async function PortalProjectDetailPage({ params }: { params: Prom
             <span>Atualizado em {formatDateTime(project.updatedAt)}</span>
           </div>
         </div>
-        <StatusBadge label={meta.label} tone={meta.tone} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <LiveRefresh />
+          <StatusBadge label={meta.label} tone={meta.tone} />
+        </div>
       </div>
 
       <ProjectSummary

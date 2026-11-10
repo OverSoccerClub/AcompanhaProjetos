@@ -1,14 +1,15 @@
 "use client";
 
-// Formulário de login por e-mail+senha — caminho principal da EQUIPE
-// (STAFF) em /entrar. <form method="POST" action="/api/auth/login"> é um
-// POST nativo de verdade: SEM JavaScript, o navegador manda o
+// Formulário de login por e-mail+senha — caminho único da EQUIPE (STAFF)
+// em /equipe. <form method="POST" action="/api/auth/login"> é um POST
+// nativo de verdade: SEM JavaScript, o navegador manda o
 // x-www-form-urlencoded direto para a rota, que responde com um 303 nativo
 // para /admin (mesmo contrato do POST /api/auth/verify). COM JavaScript,
 // interceptamos o submit só para mostrar erro inline sem recarregar a
 // página — a navegação final ainda é um `window.location.href` explícito
-// (mesma armadilha documentada em EnterButton.tsx: não dar `disabled` no
-// próprio botão de submit dentro do handler, cancela o envio nativo).
+// (mesma armadilha documentada em app/entrar/EnterButton.tsx: não dar
+// `disabled` no próprio botão de submit dentro do handler, cancela o envio
+// nativo).
 import { useId, useState } from "react";
 import { SubmitButton } from "@/app/_components/SubmitButton";
 import { MailIcon, LockIcon, ArrowRightIcon } from "@/app/_components/icons";

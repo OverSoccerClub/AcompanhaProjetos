@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
-import Image from "next/image";
-import { LoginForm } from "./LoginForm";
+import { AuthShell } from "@/app/_components/AuthShell";
 import { RequestLinkForm } from "./RequestLinkForm";
 import { EnterButton } from "./EnterButton";
-import { LockIcon } from "@/app/_components/icons";
-import logoWhite from "@/public/logo-white.png";
-import logoMarkWhite from "@/public/logo-mark-white.png";
 
-// GET /entrar — página pública de login. NUNCA consome o token (seção 5.2:
-// scanners de e-mail corporativo abrem links para inspecionar, e se o GET
-// consumisse o token, o cliente clicaria num link já "queimado"). Com
-// `?t=<token>` na URL, mostra só um botão "Entrar" que faz o POST real
+// GET /entrar — login do CLIENTE (link mágico). NUNCA consome o token
+// (seção 5.2: scanners de e-mail corporativo abrem links para inspecionar,
+// e se o GET consumisse o token, o cliente clicaria num link já "queimado").
+// Com `?t=<token>` na URL (é pra cá que o e-mail do link mágico aponta),
+// mostra só o botão "Entrar" que faz o POST real
 // (funciona sem JS: <form method="POST" action="/api/auth/verify">).
+//
+// Equipe (senha) é uma rota separada: /equipe (app/equipe/page.tsx).
 export const metadata: Metadata = { title: "Entrar — Innovare Acompanhe" };
 
 export default async function EntrarPage({
@@ -22,21 +21,16 @@ export default async function EntrarPage({
   const { t: token } = await searchParams;
 
   return (
-    <main id="conteudo-principal" className="auth">
-      <div className="auth-brand grid-tex">
-        <Image src={logoWhite} alt="Innovare Code" width={166} height={34} className="logo" />
-        <div>
-          <p className="eyebrow" style={{ color: "var(--shell-ink-2)" }}>
-            Innovare Acompanhe
-          </p>
-          <h2 style={{ marginTop: 14 }}>
-            Seu projeto, <em>etapa por etapa.</em>
-          </h2>
-          <p className="sub">
-            Veja em que fase o seu software está, o que a equipe entregou e quando precisamos da sua aprovação.
-          </p>
-        </div>
-        <div className="telemetry" aria-hidden="true">
+    <AuthShell
+      brandEyebrow="Innovare Acompanhe"
+      brandHeading={
+        <>
+          Seu projeto, <em>etapa por etapa.</em>
+        </>
+      }
+      brandSub="Veja em que fase o seu software está, o que a equipe entregou e quando precisamos da sua aprovação."
+      telemetry={
+        <>
           <div className="tele-row">
             <span className="dot" style={{ background: "#4ccf8c" }} />
             <span>
@@ -55,70 +49,45 @@ export default async function EntrarPage({
               <b>Aprovações</b> você decide quando avançar
             </span>
           </div>
-        </div>
-        <div className="auth-foot">
-          <span>innovarecode.com.br</span>
-          <span>Conexão segura · TLS</span>
-        </div>
-      </div>
-
-      <div className="auth-panel">
-        <div className="auth-card">
-          <div>
-            <div className="mark">
-              <Image src={logoMarkWhite} alt="" width={28} height={17} />
-            </div>
-            {token ? (
-              <>
-                <h1>Confirmar entrada</h1>
-                <p className="lead">Clique no botão abaixo para acessar sua conta com segurança.</p>
-              </>
-            ) : (
-              <>
-                <h1>Acessar sua conta</h1>
-                <p className="lead">Equipe InnovareCode: entre com e-mail e senha. Cliente: use o link mágico abaixo.</p>
-              </>
-            )}
-          </div>
-
-          {token ? (
-            <form method="POST" action="/api/auth/verify">
-              <input type="hidden" name="token" value={token} />
-              <EnterButton token={token} />
-            </form>
-          ) : (
-            <LoginForm />
-          )}
-
-          {!token && (
-            // <details> nativo: expande/recolhe SEM depender de JavaScript
-            // (semântica de disclosure do próprio HTML) — a alternativa de
-            // login por link mágico (clientes, ou staff sem senha definida)
-            // fica fora do caminho principal sem exigir uma rota/página nova.
-            <details className="auth-alt">
-              <summary>Prefere entrar por link mágico?</summary>
-              <div className="auth-alt-body">
-                <p className="hint">
-                  Informe seu e-mail cadastrado para receber um link de acesso — sem senha.
-                </p>
-                <RequestLinkForm />
-              </div>
-            </details>
-          )}
-
-          <div className="secure-note">
-            <LockIcon />
-            {token ? (
-              <span>
-                Este link expira em <b className="mono">15 min</b> e só pode ser usado uma vez. Se já tiver expirado,{" "}
-                <a href="/entrar">peça um novo link</a>.
-              </span>
-            ) : (
-              <span>Sua senha nunca é pedida por e-mail. O link mágico vale por 15 min e funciona uma única vez.</span>
-            )}
-          </div>
-        </div>
-      </div>
-    </main>
+        </>
+      }
+      header={
+        token ? (
+          <>
+            <h1>Confirmar entrada</h1>
+            <p className="lead">Clique no botão abaixo para acessar sua conta com segurança.</p>
+          </>
+        ) : (
+          <>
+            <h1>Acesse seu portal</h1>
+            <p className="lead">Informe seu e-mail cadastrado para receber um link de acesso — sem senha.</p>
+          </>
+        )
+      }
+      secureNote={
+        token ? (
+          <>
+            Este link expira em <b className="mono">15 min</b> e só pode ser usado uma vez. Se já tiver expirado,{" "}
+            <a href="/entrar">peça um novo link</a>.
+          </>
+        ) : (
+          "O link mágico vale por 15 min e funciona uma única vez. Não compartilhe esse link com outras pessoas."
+        )
+      }
+    >
+      {token ? (
+        <form method="POST" action="/api/auth/verify">
+          <input type="hidden" name="token" value={token} />
+          <EnterButton token={token} />
+        </form>
+      ) : (
+        <>
+          <RequestLinkForm />
+          <p className="auth-switch">
+            É da equipe? <a href="/equipe">Entrar aqui</a>
+          </p>
+        </>
+      )}
+    </AuthShell>
   );
 }

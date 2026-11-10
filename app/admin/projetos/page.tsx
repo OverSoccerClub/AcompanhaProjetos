@@ -7,6 +7,7 @@ import { AdminShell } from "../_components/AdminShell";
 import { StatusBadge } from "@/app/_components/StatusBadge";
 import { Avatar } from "@/app/_components/Avatar";
 import { EmptyState } from "@/app/_components/EmptyState";
+import { LiveRefresh } from "@/app/_components/LiveRefresh";
 import { formatDate } from "@/app/_components/format";
 import { PROJECT_STATUS_META, metaOrFallback } from "@/app/_components/status-maps";
 import { SearchIcon, ArrowRightIcon } from "@/app/_components/icons";
@@ -56,6 +57,7 @@ export default async function AdminProjectsPage({
           <p className="eyebrow">Operação</p>
           <h1 style={{ fontSize: 26, fontWeight: 600, marginTop: 6 }}>Projetos</h1>
         </div>
+        <LiveRefresh />
       </div>
 
       <div className="kpis">

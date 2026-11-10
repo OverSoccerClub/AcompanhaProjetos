@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Avatar } from "@/app/_components/Avatar";
 import { LogOutIcon } from "@/app/_components/icons";
+import { LogoutButton } from "@/app/_components/LogoutButton";
 import logoWhite from "@/public/logo-white.png";
 
 // Casca visual comum das telas do portal do cliente: topbar navy fixa com a
@@ -41,10 +42,7 @@ export function PortalShell({
               {companyName && <small>{companyName}</small>}
             </span>
             <form method="POST" action="/api/auth/logout">
-              <button type="submit" className="btn-shell">
-                <LogOutIcon />
-                Sair
-              </button>
+              <LogoutButton icon={<LogOutIcon />} />
             </form>
           </div>
         </div>

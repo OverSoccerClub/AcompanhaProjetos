@@ -10,7 +10,7 @@ import { getClientIpFromHeaders } from "@/lib/request-ip";
 import { isOriginAllowed, corsHeaders } from "@/lib/intake-cors";
 import { validateIntakePayload, MAX_BODY_BYTES } from "@/lib/intake-validation";
 import { createIntake } from "@/lib/intakes";
-import { sendNewIntakeNotification } from "@/lib/email";
+import { sendIntakeConfirmation, sendNewIntakeNotification } from "@/lib/email";
 import { apiError } from "@/lib/http-errors";
 
 export const runtime = "nodejs";
@@ -87,7 +87,8 @@ export async function POST(request: NextRequest) {
     });
 
     // Best-effort, nunca bloqueia a resposta ao lead por falha de e-mail —
-    // só dispara no caminho "criado de verdade" (não em repetição idempotente).
+    // só dispara no caminho "criado de verdade" (não em repetição idempotente
+    // nem em honeypot, que já retornou antes de chegar aqui).
     if (result.created) {
       sendNewIntakeNotification({
         protocol: result.protocol,
@@ -95,6 +96,12 @@ export async function POST(request: NextRequest) {
         contactName: validation.data.contact.nome,
         contactEmail: validation.data.contact.email,
       }).catch((err) => console.error("[intakes] Falha ao notificar equipe (não-crítico).", err));
+
+      sendIntakeConfirmation({
+        to: validation.data.contact.email,
+        protocol: result.protocol,
+        marca: validation.data.company.marca,
+      }).catch((err) => console.error("[intakes] Falha ao enviar confirmação ao contato (não-crítico).", err));
     }
 
     return NextResponse.json({ intakeId: result.intakeId, protocolo: result.protocol }, { status: 201, headers });

@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Avatar } from "@/app/_components/Avatar";
 import { InboxIcon, FolderIcon } from "@/app/_components/icons";
+import { LogoutButton } from "@/app/_components/LogoutButton";
 import { countNewIntakes } from "@/app/actions/intake-admin";
 import logoWhite from "@/public/logo-white.png";
 
@@ -50,9 +51,7 @@ export async function AdminShell({
             <small>admin</small>
           </span>
           <form method="POST" action="/api/auth/logout" style={{ marginLeft: "auto" }}>
-            <button type="submit" className="btn-shell">
-              Sair
-            </button>
+            <LogoutButton />
           </form>
         </div>
       </aside>

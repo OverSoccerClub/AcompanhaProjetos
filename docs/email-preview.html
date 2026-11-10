@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><title>Preview dos e-mails — Innovare Acompanhe</title></head>
+<body style="background:#f0f1f5;font-family:system-ui,Arial,sans-serif;padding:32px;max-width:680px;margin:0 auto;">
+<h1 style="font-size:18px;color:#111;">Preview dos templates de e-mail (lib/email.ts)</h1>
+<p style="font-size:13px;color:#666;margin:0 0 32px;">Renderizado a partir do HTML real gerado pelas funções de envio (SMTP mockado). Logo carregada via URL hospedada: https://innovarecode.com.br/assets/logo-white.png</p>
+<section style="margin:0 0 48px;">
+<h2 style="font:600 14px/1.4 system-ui;color:#333;margin:0 0 12px;">1. Acesso do cliente (link mágico) — sendMagicLinkEmail</h2>
+<iframe srcdoc="<!DOCTYPE html>
+<html lang=&quot;pt-BR&quot;>
+<head>
+<meta charset=&quot;UTF-8&quot;>
+<meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<meta name=&quot;color-scheme&quot; content=&quot;light&quot;>
+<meta name=&quot;supported-color-schemes&quot; content=&quot;light&quot;>
+<title>Innovare Code</title>
+</head>
+<body style=&quot;margin:0;padding:0;background-color:#eef1f3;font-family:Arial,Helvetica,sans-serif;&quot;>
+<div style=&quot;display:none;max-height:0;overflow:hidden;mso-hide:all;opacity:0;color:transparent;&quot;>Seu link de acesso ao Portal do Cliente Innovare Code — expira em 15 minutos.</div>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;background-color:#eef1f3;&quot;>
+<tr><td align=&quot;center&quot; style=&quot;padding:32px 16px;&quot;>
+<table role=&quot;presentation&quot; width=&quot;600&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;width:600px;max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;&quot;>
+<tr><td align=&quot;center&quot; style=&quot;background-color:#0D1B4B;padding:28px 32px;&quot;>
+<img src=&quot;https://innovarecode.com.br/assets/logo-white.png&quot; width=&quot;150&quot; alt=&quot;Innovare Code&quot; style=&quot;display:block;width:150px;max-width:150px;height:auto;border:0;outline:none;text-decoration:none;&quot;>
+</td></tr>
+<tr><td style=&quot;padding:40px 40px 32px 40px;&quot;>
+
+<p style=&quot;margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0030B8;&quot;>Portal do Cliente</p>
+<p style=&quot;margin:0 0 20px;font-size:22px;font-weight:700;color:#0A1230;&quot;>Seu acesso ao acompanhamento do projeto</p>
+<p style=&quot;margin:0 0 16px;font-size:15px;color:#47516d;line-height:1.6;&quot;>Olá! A Innovare Code preparou um espaço exclusivo — o <strong>Portal do Cliente</strong> — para você acompanhar o andamento do seu projeto em tempo real: a fase atual, o que já foi entregue, os próximos passos e quando sua aprovação é necessária.</p>
+<p style=&quot;margin:0 0 28px;font-size:15px;color:#47516d;line-height:1.6;&quot;>Clique no botão abaixo para entrar:</p>
+<table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;margin:0 auto 24px auto;&quot;>
+<tr><td align=&quot;center&quot; style=&quot;border-radius:8px;background-color:#0030B8;&quot;>
+<a href=&quot;https://acompanhe.innovarecode.com.br/entrar?t=f3a9c1e7b2d4&quot; style=&quot;display:inline-block;padding:16px 36px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px;&quot;>Acessar meu projeto</a>
+</td></tr>
+</table>
+<p style=&quot;margin:0 0 20px;font-size:12px;color:#6b7280;line-height:1.6;text-align:center;&quot;>Se o botão não funcionar, copie e cole este link no navegador:<br><a href=&quot;https://acompanhe.innovarecode.com.br/entrar?t=f3a9c1e7b2d4&quot; style=&quot;color:#0030B8;word-break:break-all;&quot;>https://acompanhe.innovarecode.com.br/entrar?t=f3a9c1e7b2d4</a></p>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;background-color:#eef1fb;border-radius:8px;&quot;>
+<tr><td style=&quot;padding:16px 20px;&quot;>
+<p style=&quot;margin:0 0 6px;font-size:13px;color:#0A1230;line-height:1.6;&quot;><strong>Por segurança:</strong></p>
+<p style=&quot;margin:0 0 4px;font-size:13px;color:#47516d;line-height:1.6;&quot;>&bull; Este link expira em <strong>15 minutos</strong> e só pode ser usado uma vez.</p>
+<p style=&quot;margin:0;font-size:13px;color:#47516d;line-height:1.6;&quot;>&bull; A Innovare Code nunca pede sua senha por e-mail. Se você não solicitou este acesso, pode ignorar esta mensagem com segurança.</p>
+</td></tr>
+</table>
+</td></tr>
+<tr><td style=&quot;background-color:#eef1fb;padding:20px 32px;border-top:1px solid #e3e7f0;&quot;>
+<p style=&quot;margin:0;font-size:12px;color:#6b7280;line-height:1.6;text-align:center;&quot;>
+Innovare Code &middot; <a href=&quot;https://innovarecode.com.br&quot; style=&quot;color:#0030B8;text-decoration:none;&quot;>innovarecode.com.br</a>
+</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>" style="width:100%;height:780px;border:1px solid #ccc;border-radius:8px;"></iframe>
+</section>
+<section style="margin:0 0 48px;">
+<h2 style="font:600 14px/1.4 system-ui;color:#333;margin:0 0 12px;">2. Confirmação de briefing — sendIntakeConfirmation</h2>
+<iframe srcdoc="<!DOCTYPE html>
+<html lang=&quot;pt-BR&quot;>
+<head>
+<meta charset=&quot;UTF-8&quot;>
+<meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<meta name=&quot;color-scheme&quot; content=&quot;light&quot;>
+<meta name=&quot;supported-color-schemes&quot; content=&quot;light&quot;>
+<title>Innovare Code</title>
+</head>
+<body style=&quot;margin:0;padding:0;background-color:#eef1f3;font-family:Arial,Helvetica,sans-serif;&quot;>
+<div style=&quot;display:none;max-height:0;overflow:hidden;mso-hide:all;opacity:0;color:transparent;&quot;>Recebemos seu briefing — protocolo PRJ-0142.</div>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;background-color:#eef1f3;&quot;>
+<tr><td align=&quot;center&quot; style=&quot;padding:32px 16px;&quot;>
+<table role=&quot;presentation&quot; width=&quot;600&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;width:600px;max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;&quot;>
+<tr><td align=&quot;center&quot; style=&quot;background-color:#0D1B4B;padding:28px 32px;&quot;>
+<img src=&quot;https://innovarecode.com.br/assets/logo-white.png&quot; width=&quot;150&quot; alt=&quot;Innovare Code&quot; style=&quot;display:block;width:150px;max-width:150px;height:auto;border:0;outline:none;text-decoration:none;&quot;>
+</td></tr>
+<tr><td style=&quot;padding:40px 40px 32px 40px;&quot;>
+
+<p style=&quot;margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0030B8;&quot;>Briefing recebido</p>
+<p style=&quot;margin:0 0 20px;font-size:22px;font-weight:700;color:#0A1230;&quot;>Recebemos o briefing da Loja Exemplo!</p>
+<p style=&quot;margin:0 0 24px;font-size:15px;color:#47516d;line-height:1.6;&quot;>Nossa equipe vai analisar as informações enviadas e entra em contato em breve com os próximos passos.</p>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;background-color:#eef1fb;border-radius:8px;margin:0 0 24px;&quot;>
+<tr><td style=&quot;padding:18px 22px;&quot;>
+<p style=&quot;margin:0;font-size:11px;color:#6b7280;letter-spacing:0.06em;text-transform:uppercase;&quot;>Protocolo</p>
+<p style=&quot;margin:4px 0 0;font-size:20px;color:#0A1230;font-weight:700;&quot;>PRJ-0142</p>
+</td></tr>
+</table>
+<p style=&quot;margin:0 0 8px;font-size:13px;color:#6b7280;line-height:1.6;&quot;>Guarde este protocolo para referência.</p>
+<p style=&quot;margin:0;font-size:13px;color:#6b7280;line-height:1.6;&quot;>Este e-mail é só uma confirmação de recebimento — não contém nenhum link de acesso. Quando o projeto for iniciado, você recebe um e-mail separado com o acesso ao Portal do Cliente.</p>
+</td></tr>
+<tr><td style=&quot;background-color:#eef1fb;padding:20px 32px;border-top:1px solid #e3e7f0;&quot;>
+<p style=&quot;margin:0;font-size:12px;color:#6b7280;line-height:1.6;text-align:center;&quot;>
+Innovare Code &middot; <a href=&quot;https://innovarecode.com.br&quot; style=&quot;color:#0030B8;text-decoration:none;&quot;>innovarecode.com.br</a>
+</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>" style="width:100%;height:780px;border:1px solid #ccc;border-radius:8px;"></iframe>
+</section>
+<section style="margin:0 0 48px;">
+<h2 style="font:600 14px/1.4 system-ui;color:#333;margin:0 0 12px;">3. Aviso interno de novo briefing — sendNewIntakeNotification</h2>
+<iframe srcdoc="<!DOCTYPE html>
+<html lang=&quot;pt-BR&quot;>
+<head>
+<meta charset=&quot;UTF-8&quot;>
+<meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<meta name=&quot;color-scheme&quot; content=&quot;light&quot;>
+<meta name=&quot;supported-color-schemes&quot; content=&quot;light&quot;>
+<title>Innovare Code</title>
+</head>
+<body style=&quot;margin:0;padding:0;background-color:#eef1f3;font-family:Arial,Helvetica,sans-serif;&quot;>
+<div style=&quot;display:none;max-height:0;overflow:hidden;mso-hide:all;opacity:0;color:transparent;&quot;>Novo briefing — Loja Exemplo (protocolo PRJ-0142).</div>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;background-color:#eef1f3;&quot;>
+<tr><td align=&quot;center&quot; style=&quot;padding:32px 16px;&quot;>
+<table role=&quot;presentation&quot; width=&quot;600&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;width:600px;max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;&quot;>
+<tr><td align=&quot;center&quot; style=&quot;background-color:#0D1B4B;padding:28px 32px;&quot;>
+<img src=&quot;https://innovarecode.com.br/assets/logo-white.png&quot; width=&quot;150&quot; alt=&quot;Innovare Code&quot; style=&quot;display:block;width:150px;max-width:150px;height:auto;border:0;outline:none;text-decoration:none;&quot;>
+</td></tr>
+<tr><td style=&quot;padding:40px 40px 32px 40px;&quot;>
+
+<p style=&quot;margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:#0030B8;&quot;>Aviso interno</p>
+<p style=&quot;margin:0 0 20px;font-size:22px;font-weight:700;color:#0A1230;&quot;>Novo briefing recebido pelo site</p>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;background-color:#eef1fb;border-radius:8px;margin:0 0 24px;&quot;>
+<tr><td style=&quot;padding:18px 22px;&quot;>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot;><tr><td style=&quot;padding:8px 0;font-size:12px;color:#6b7280;letter-spacing:0.04em;text-transform:uppercase;width:120px;vertical-align:top;&quot;>Protocolo</td><td style=&quot;padding:8px 0;font-size:14px;color:#0A1230;&quot;>PRJ-0142</td></tr><tr><td style=&quot;padding:8px 0;font-size:12px;color:#6b7280;letter-spacing:0.04em;text-transform:uppercase;width:120px;vertical-align:top;&quot;>Marca</td><td style=&quot;padding:8px 0;font-size:14px;color:#0A1230;&quot;>Loja Exemplo</td></tr><tr><td style=&quot;padding:8px 0;font-size:12px;color:#6b7280;letter-spacing:0.04em;text-transform:uppercase;width:120px;vertical-align:top;&quot;>Contato</td><td style=&quot;padding:8px 0;font-size:14px;color:#0A1230;&quot;>Maria Teste &lt;maria@exemplo.com.br&gt;</td></tr></table>
+</td></tr>
+</table>
+<table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; border=&quot;0&quot; style=&quot;margin:0 auto 24px auto;&quot;>
+<tr><td align=&quot;center&quot; style=&quot;border-radius:8px;background-color:#0030B8;&quot;>
+<a href=&quot;https://acompanhe.innovarecode.com.br/admin&quot; style=&quot;display:inline-block;padding:16px 36px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px;&quot;>Abrir admin para triagem</a>
+</td></tr>
+</table>
+</td></tr>
+<tr><td style=&quot;background-color:#eef1fb;padding:20px 32px;border-top:1px solid #e3e7f0;&quot;>
+<p style=&quot;margin:0;font-size:12px;color:#6b7280;line-height:1.6;text-align:center;&quot;>
+Innovare Code &middot; <a href=&quot;https://innovarecode.com.br&quot; style=&quot;color:#0030B8;text-decoration:none;&quot;>innovarecode.com.br</a>
+</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>" style="width:100%;height:780px;border:1px solid #ccc;border-radius:8px;"></iframe>
+</section>
+</body>
+</html>

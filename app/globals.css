@@ -285,6 +285,7 @@ svg {
   padding: 28px 24px 48px;
   display: grid;
   gap: 20px;
+  align-content: start;
   flex: 1;
   width: 100%;
 }
@@ -1074,6 +1075,19 @@ a.list-item:hover {
   margin-top: 14px;
 }
 
+/* Link discreto cruzado entre /entrar (cliente) e /equipe (staff) — cada
+   página é focada no próprio público, mas ninguém deve ficar preso na
+   porta errada sem saber pra onde ir. */
+.auth-switch {
+  text-align: center;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+
+.auth-switch a {
+  font-weight: 600;
+}
+
 @media (max-width: 1000px) {
   .auth {
     grid-template-columns: minmax(0, 1fr);
@@ -1278,6 +1292,18 @@ a.list-item:hover {
   align-items: center;
   font: 12px var(--font-mono);
   color: var(--ink-3);
+  white-space: nowrap;
+}
+
+/* Ponto "ao vivo" do LiveRefresh — mesmo pulso de .badge[data-live] */
+.sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+  color: var(--success);
+  background: currentColor;
+  animation: acompanhe-ping 2s ease-out infinite;
 }
 
 .summary {

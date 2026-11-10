@@ -74,45 +74,167 @@ export async function sendEmail({ to, subject, html, text }: SendEmailInput): Pr
   }
 }
 
+// URL pública e já confirmada no ar da logomarca (fundo transparente, versão
+// branca — pensada para ficar sobre o header navy). Nunca trocar por base64:
+// Gmail não renderiza `data:` URI em e-mail. Ponto único de troca se a Lyra
+// mover o asset.
+const LOGO_URL = "https://innovarecode.com.br/assets/logo-white.png";
+
+// Paleta de marca usada nos e-mails (mesmos tokens do design system do app,
+// ver docs/design-system.md — `--shell`/`--brand`). Fixa em valores literais
+// porque CSS custom properties não têm suporte confiável em cliente de
+// e-mail; tudo aqui vai inline.
+const EMAIL_COLORS = {
+  shell: "#0D1B4B", // header navy sobre o qual a logo branca aparece
+  brand: "#0030B8", // botão CTA primário (royal)
+  brandPress: "#00237F", // hover/active do CTA (só referência, sem :hover em e-mail)
+  pageBg: "#eef1f3",
+  cardBg: "#ffffff",
+  softBg: "#eef1fb", // caixa de destaque (protocolo, aviso de segurança)
+  ink: "#0A1230",
+  inkSoft: "#47516d",
+  inkMuted: "#6b7280",
+  line: "#e3e7f0",
+} as const;
+
+/**
+ * Casca HTML comum aos e-mails transacionais: header navy com a logomarca
+ * hospedada, card branco com o conteúdo passado em `bodyHtml`, footer com a
+ * marca. Só tabelas + estilo inline (sem `<style>` em bloco, sem classes) —
+ * é o que sobrevive ao Gmail/Outlook. `previewText` é o texto que aparece na
+ * pré-visualização da caixa de entrada, antes de abrir o e-mail.
+ */
+function emailLayout(input: { previewText: string; bodyHtml: string }): string {
+  const { previewText, bodyHtml } = input;
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Innovare Code</title>
+</head>
+<body style="margin:0;padding:0;background-color:${EMAIL_COLORS.pageBg};font-family:Arial,Helvetica,sans-serif;">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;opacity:0;color:transparent;">${previewText}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${EMAIL_COLORS.pageBg};">
+<tr><td align="center" style="padding:32px 16px;">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background-color:${EMAIL_COLORS.cardBg};border-radius:12px;overflow:hidden;">
+<tr><td align="center" style="background-color:${EMAIL_COLORS.shell};padding:28px 32px;">
+<img src="${LOGO_URL}" width="150" alt="Innovare Code" style="display:block;width:150px;max-width:150px;height:auto;border:0;outline:none;text-decoration:none;">
+</td></tr>
+<tr><td style="padding:40px 40px 32px 40px;">
+${bodyHtml}
+</td></tr>
+<tr><td style="background-color:${EMAIL_COLORS.softBg};padding:20px 32px;border-top:1px solid ${EMAIL_COLORS.line};">
+<p style="margin:0;font-size:12px;color:${EMAIL_COLORS.inkMuted};line-height:1.6;text-align:center;">
+Innovare Code &middot; <a href="https://innovarecode.com.br" style="color:${EMAIL_COLORS.brand};text-decoration:none;">innovarecode.com.br</a>
+</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+/** Botão CTA grande, royal, centralizado — mesmo componente nos 3 e-mails. */
+function emailButton(href: string, label: string): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 24px auto;">
+<tr><td align="center" style="border-radius:8px;background-color:${EMAIL_COLORS.brand};">
+<a href="${href}" style="display:inline-block;padding:16px 36px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:8px;">${label}</a>
+</td></tr>
+</table>`;
+}
+
 function magicLinkHtml(link: string): string {
-  return `
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-    <body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 0">
-        <tr><td align="center">
-          <table width="480" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden">
-            <tr><td style="background:#0f172a;padding:24px 32px">
-              <p style="margin:0;color:#ffffff;font-size:20px;font-weight:700">InnovareCode</p>
-              <p style="margin:2px 0 0;color:#94a3b8;font-size:12px">Acompanhe</p>
-            </td></tr>
-            <tr><td style="padding:32px">
-              <p style="margin:0 0 20px;font-size:15px;color:#333333">Clique no botão abaixo para entrar no seu painel de acompanhamento:</p>
-              <p style="text-align:center;margin:0 0 20px">
-                <a href="${link}" style="display:inline-block;background:#0f172a;color:#ffffff;text-decoration:none;padding:14px 28px;border-radius:6px;font-weight:700">Entrar</a>
-              </p>
-              <p style="margin:0 0 8px;font-size:13px;color:#555555;line-height:1.6">Este link expira em <strong>15 minutos</strong> e só pode ser usado uma vez.</p>
-              <p style="margin:0;font-size:13px;color:#888888;line-height:1.6">Se não foi você quem pediu este acesso, pode ignorar este e-mail com segurança.</p>
-            </td></tr>
-          </table>
-        </td></tr>
-      </table>
-    </body>
-    </html>`;
+  const body = `
+<p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${EMAIL_COLORS.brand};">Portal do Cliente</p>
+<p style="margin:0 0 20px;font-size:22px;font-weight:700;color:${EMAIL_COLORS.ink};">Seu acesso ao acompanhamento do projeto</p>
+<p style="margin:0 0 16px;font-size:15px;color:${EMAIL_COLORS.inkSoft};line-height:1.6;">Olá! A Innovare Code preparou um espaço exclusivo — o <strong>Portal do Cliente</strong> — para você acompanhar o andamento do seu projeto em tempo real: a fase atual, o que já foi entregue, os próximos passos e quando sua aprovação é necessária.</p>
+<p style="margin:0 0 28px;font-size:15px;color:${EMAIL_COLORS.inkSoft};line-height:1.6;">Clique no botão abaixo para entrar:</p>
+${emailButton(link, "Acessar meu projeto")}
+<p style="margin:0 0 20px;font-size:12px;color:${EMAIL_COLORS.inkMuted};line-height:1.6;text-align:center;">Se o botão não funcionar, copie e cole este link no navegador:<br><a href="${link}" style="color:${EMAIL_COLORS.brand};word-break:break-all;">${link}</a></p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${EMAIL_COLORS.softBg};border-radius:8px;">
+<tr><td style="padding:16px 20px;">
+<p style="margin:0 0 6px;font-size:13px;color:${EMAIL_COLORS.ink};line-height:1.6;"><strong>Por segurança:</strong></p>
+<p style="margin:0 0 4px;font-size:13px;color:${EMAIL_COLORS.inkSoft};line-height:1.6;">&bull; Este link expira em <strong>15 minutos</strong> e só pode ser usado uma vez.</p>
+<p style="margin:0;font-size:13px;color:${EMAIL_COLORS.inkSoft};line-height:1.6;">&bull; A Innovare Code nunca pede sua senha por e-mail. Se você não solicitou este acesso, pode ignorar esta mensagem com segurança.</p>
+</td></tr>
+</table>`;
+  return emailLayout({ previewText: "Seu link de acesso ao Portal do Cliente Innovare Code — expira em 15 minutos.", bodyHtml: body });
 }
 
 function magicLinkText(link: string): string {
-  return `InnovareCode Acompanhe\n\nEntre no seu painel de acompanhamento: ${link}\n\nEste link expira em 15 minutos e só pode ser usado uma vez. Se não foi você quem pediu este acesso, pode ignorar este e-mail.`;
+  return [
+    "Innovare Code — Portal do Cliente",
+    "",
+    "A Innovare Code preparou um espaço exclusivo (Portal do Cliente) para você acompanhar o andamento do seu projeto em tempo real: a fase atual, o que já foi entregue, os próximos passos e quando sua aprovação é necessária.",
+    "",
+    `Acesse seu projeto: ${link}`,
+    "",
+    "Por segurança: este link expira em 15 minutos e só pode ser usado uma vez. A Innovare Code nunca pede sua senha por e-mail. Se você não solicitou este acesso, pode ignorar esta mensagem.",
+  ].join("\n");
 }
 
 /** E-mail do link mágico de login (ver lib/magic-link.ts). */
 export async function sendMagicLinkEmail(to: string, link: string): Promise<SendEmailResult> {
   return sendEmail({
     to,
-    subject: "Seu link de acesso — Innovare Acompanhe",
+    subject: "Seu acesso ao acompanhamento do projeto — Innovare Code",
     html: magicLinkHtml(link),
     text: magicLinkText(link),
+  });
+}
+
+function intakeConfirmationHtml(protocol: string, marca: string): string {
+  const body = `
+<p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${EMAIL_COLORS.brand};">Briefing recebido</p>
+<p style="margin:0 0 20px;font-size:22px;font-weight:700;color:${EMAIL_COLORS.ink};">Recebemos o briefing da ${marca}!</p>
+<p style="margin:0 0 24px;font-size:15px;color:${EMAIL_COLORS.inkSoft};line-height:1.6;">Nossa equipe vai analisar as informações enviadas e entra em contato em breve com os próximos passos.</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${EMAIL_COLORS.softBg};border-radius:8px;margin:0 0 24px;">
+<tr><td style="padding:18px 22px;">
+<p style="margin:0;font-size:11px;color:${EMAIL_COLORS.inkMuted};letter-spacing:0.06em;text-transform:uppercase;">Protocolo</p>
+<p style="margin:4px 0 0;font-size:20px;color:${EMAIL_COLORS.ink};font-weight:700;">${protocol}</p>
+</td></tr>
+</table>
+<p style="margin:0 0 8px;font-size:13px;color:${EMAIL_COLORS.inkMuted};line-height:1.6;">Guarde este protocolo para referência.</p>
+<p style="margin:0;font-size:13px;color:${EMAIL_COLORS.inkMuted};line-height:1.6;">Este e-mail é só uma confirmação de recebimento — não contém nenhum link de acesso. Quando o projeto for iniciado, você recebe um e-mail separado com o acesso ao Portal do Cliente.</p>`;
+  return emailLayout({ previewText: `Recebemos seu briefing — protocolo ${protocol}.`, bodyHtml: body });
+}
+
+function intakeConfirmationText(protocol: string, marca: string): string {
+  return [
+    "Innovare Code — Briefing recebido",
+    "",
+    `Olá! Recebemos o briefing da ${marca}.`,
+    "",
+    `Protocolo: ${protocol}`,
+    "",
+    "Nossa equipe vai analisar as informações enviadas e entra em contato em breve com os próximos passos. Guarde este protocolo para referência.",
+    "",
+    "Este e-mail é só uma confirmação de recebimento — não contém nenhum link de acesso. Quando o projeto for iniciado, você recebe um e-mail separado com o acesso ao Portal do Cliente.",
+  ].join("\n");
+}
+
+/**
+ * Confirmação ao CONTATO que preencheu o briefing (efeito colateral do
+ * POST /api/v1/intakes — seção 4.2 da arquitetura), disparada só no caminho
+ * "criado de verdade" (nunca em honeypot nem em reenvio idempotente — ver
+ * route handler). NÃO contém link de acesso/login: o acesso ao portal só é
+ * concedido quando a equipe converte e convida o cliente (fluxo separado).
+ * Best-effort: nunca lança, não bloqueia a resposta HTTP ao lead.
+ */
+export async function sendIntakeConfirmation(input: {
+  to: string;
+  protocol: string;
+  marca: string;
+}): Promise<SendEmailResult> {
+  return sendEmail({
+    to: input.to,
+    subject: `Recebemos seu briefing — ${input.protocol}`,
+    html: intakeConfirmationHtml(input.protocol, input.marca),
+    text: intakeConfirmationText(input.protocol, input.marca),
   });
 }
 
@@ -136,7 +258,36 @@ export async function sendNewIntakeNotification(input: {
     return { ok: false };
   }
   const subject = `Novo briefing recebido — ${input.protocol}`;
-  const text = `Novo briefing recebido pelo site.\n\nProtocolo: ${input.protocol}\nMarca: ${input.marca}\nContato: ${input.contactName} <${input.contactEmail}>\n\nAbra o admin do Acompanhe para triagem.`;
-  const html = `<p>Novo briefing recebido pelo site.</p><ul><li><strong>Protocolo:</strong> ${input.protocol}</li><li><strong>Marca:</strong> ${input.marca}</li><li><strong>Contato:</strong> ${input.contactName} &lt;${input.contactEmail}&gt;</li></ul><p>Abra o admin do Acompanhe para triagem.</p>`;
+  const appUrl = (process.env.APP_URL || "").replace(/\/+$/, "");
+  const adminLink = appUrl ? `${appUrl}/admin` : null;
+  const text = [
+    "Innovare Code — Novo briefing recebido pelo site",
+    "",
+    `Protocolo: ${input.protocol}`,
+    `Marca: ${input.marca}`,
+    `Contato: ${input.contactName} <${input.contactEmail}>`,
+    "",
+    adminLink ? `Abra o admin para triagem: ${adminLink}` : "Abra o admin do Acompanhe para triagem.",
+  ].join("\n");
+  const rows = [
+    ["Protocolo", input.protocol],
+    ["Marca", input.marca],
+    ["Contato", `${input.contactName} &lt;${input.contactEmail}&gt;`],
+  ]
+    .map(
+      ([label, value]) =>
+        `<tr><td style="padding:8px 0;font-size:12px;color:${EMAIL_COLORS.inkMuted};letter-spacing:0.04em;text-transform:uppercase;width:120px;vertical-align:top;">${label}</td><td style="padding:8px 0;font-size:14px;color:${EMAIL_COLORS.ink};">${value}</td></tr>`
+    )
+    .join("");
+  const body = `
+<p style="margin:0 0 4px;font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${EMAIL_COLORS.brand};">Aviso interno</p>
+<p style="margin:0 0 20px;font-size:22px;font-weight:700;color:${EMAIL_COLORS.ink};">Novo briefing recebido pelo site</p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${EMAIL_COLORS.softBg};border-radius:8px;margin:0 0 24px;">
+<tr><td style="padding:18px 22px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows}</table>
+</td></tr>
+</table>
+${adminLink ? emailButton(adminLink, "Abrir admin para triagem") : `<p style="margin:0;font-size:13px;color:${EMAIL_COLORS.inkMuted};line-height:1.6;">Abra o admin do Acompanhe para triagem.</p>`}`;
+  const html = emailLayout({ previewText: `Novo briefing — ${input.marca} (protocolo ${input.protocol}).`, bodyHtml: body });
   return sendEmail({ to, subject, html, text });
 }

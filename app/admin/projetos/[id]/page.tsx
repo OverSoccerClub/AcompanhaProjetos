@@ -7,6 +7,7 @@ import { AdminShell } from "../../_components/AdminShell";
 import { StatusBadge } from "@/app/_components/StatusBadge";
 import { PhaseTimeline } from "@/app/_components/PhaseTimeline";
 import { UpdatesList } from "@/app/_components/UpdatesList";
+import { LiveRefresh } from "@/app/_components/LiveRefresh";
 import { formatDate } from "@/app/_components/format";
 import { PROJECT_STATUS_META, metaOrFallback } from "@/app/_components/status-maps";
 import { ProjectStatusForm } from "./ProjectStatusForm";
@@ -39,7 +40,10 @@ export default async function AdminProjectDetailPage({ params }: { params: Promi
             {project.client.name} · criado em {formatDate(project.createdAt)}
           </p>
         </div>
-        <StatusBadge label={meta.label} tone={meta.tone} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <LiveRefresh />
+          <StatusBadge label={meta.label} tone={meta.tone} />
+        </div>
       </div>
 
       <div className="detail-grid">
