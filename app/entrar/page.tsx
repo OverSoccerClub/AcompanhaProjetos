@@ -30,7 +30,7 @@ export default async function EntrarPage({
             <p className="lead">Clique no botão abaixo para acessar sua conta com segurança.</p>
             <form method="POST" action="/api/auth/verify">
               <input type="hidden" name="token" value={token} />
-              <EnterButton />
+              <EnterButton token={token} />
             </form>
             <p className="section-hint" style={{ marginTop: 16 }}>
               Este link expira em 15 minutos e só pode ser usado uma vez. Se já tiver expirado,{" "}
