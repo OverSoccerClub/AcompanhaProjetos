@@ -33,17 +33,25 @@ export function AddUpdateForm({ projectId, stages }: { projectId: string; stages
     setError(null);
     setDone(false);
     try {
-      await addProjectUpdate(projectId, {
+      const result = await addProjectUpdate(projectId, {
         text,
         visibility,
         type: type as "COMENTARIO" | "ARQUIVO" | "MARCO",
         stageId: stageId || undefined,
       });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
       setText("");
       setDone(true);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível adicionar a atualização.");
+      // Só cai aqui uma falha REALMENTE inesperada — não usar `err.message`
+      // (em produção o Next.js substitui a mensagem original por um texto
+      // genérico de proteção; ver nota em `convertIntake`).
+      console.error("[AddUpdateForm] Falha inesperada ao adicionar atualização.", err);
+      setError("Não foi possível adicionar a atualização agora. Tente novamente em instantes.");
     } finally {
       setPending(false);
     }

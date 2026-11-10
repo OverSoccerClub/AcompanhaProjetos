@@ -86,72 +86,119 @@ export type ConvertIntakeInput = {
   contactEmail: string;
 };
 
+export type ConvertIntakeResult =
+  | { ok: true; projectId: string; projectCode: string }
+  | { ok: false; error: string };
+
+/** Erro de validação de negócio ESPERADO dentro da transação de conversão
+ * (hoje só o conflito de e-mail de contato). Marcador próprio (em vez de
+ * comparar `err.message`) para distinguir, no `catch` abaixo, "a conversão
+ * não pode prosseguir por uma regra de negócio" de qualquer outra falha
+ * inesperada (conexão caiu etc.) que deve continuar subindo. */
+class ConvertIntakeValidationError extends Error {}
+
 /**
  * Converte um Intake em Project (seção 5.3): cria o Project, semeia as
  * etapas do template (§3), cria/reusa o User CLIENT do contato e dispara o
  * link mágico de boas-vindas. Tudo numa única transação, exceto o envio do
  * e-mail (efeito externo — roda só depois do commit, best-effort).
+ *
+ * IMPORTANTE (causa raiz do "Minified React error #441" relatado em
+ * produção): esta action é chamada DIRETO como função (`await
+ * convertIntake(...)`) pelo `ConvertIntakeForm`, não via `<form action>`.
+ * Nesse modo de chamada, o Next.js trata QUALQUER erro lançado (`throw`) de
+ * dentro de uma Server Action como falha inesperada e, em build de
+ * PRODUÇÃO, redige a mensagem original por segurança — o cliente recebe só
+ * o erro genérico "An error occurred in the Server Components render..."
+ * (digest), que o runtime do React exibe como "Minified React error #441".
+ * Em dev isso não aparece porque o dev build NÃO redige mensagens — por
+ * isso o sintoma só batia em produção. Antes desta correção, toda falha de
+ * NEGÓCIO esperada aqui (título curto, e-mail inválido, intake já
+ * convertido, e-mail de contato já usado por outro cliente) usava `throw
+ * new Error(mensagem amigável)`, e a mensagem amigável nunca chegava ao
+ * usuário em produção — só o #441.
+ *
+ * Correção: erros de validação/regra de negócio ESPERADOS não lançam mais —
+ * voltam como `{ ok: false, error }` (união discriminada), que atravessa a
+ * ponte de Server Action como DADO comum (nunca é redigido, porque não é um
+ * `throw`). Só uma falha genuinamente inesperada (ex.: banco fora do ar)
+ * ainda lança — nesse caso é correto que produção esconda o detalhe interno
+ * (pode conter informação sensível) e mostre algo genérico.
  */
-export async function convertIntake(intakeId: string, input: ConvertIntakeInput) {
+export async function convertIntake(
+  intakeId: string,
+  input: ConvertIntakeInput
+): Promise<ConvertIntakeResult> {
   const staff = await requireStaff();
 
   if (typeof input.title !== "string" || input.title.trim().length < 2) {
-    throw new Error("Título do projeto precisa ter ao menos 2 caracteres.");
+    return { ok: false, error: "Título do projeto precisa ter ao menos 2 caracteres." };
   }
   const email = input.contactEmail?.trim().toLowerCase();
   if (!email || !email.includes("@")) {
-    throw new Error("E-mail de contato inválido.");
+    return { ok: false, error: "E-mail de contato inválido." };
   }
   if (typeof input.contactName !== "string" || input.contactName.trim().length < 2) {
-    throw new Error("Nome de contato inválido.");
+    return { ok: false, error: "Nome de contato inválido." };
   }
 
   const intake = await prisma.intake.findUnique({ where: { id: intakeId } });
-  if (!intake) throw new Error("Intake não encontrado.");
+  if (!intake) return { ok: false, error: "Intake não encontrado." };
   if (intake.status === IntakeStatus.CONVERTIDO) {
-    throw new Error("Este intake já foi convertido em projeto.");
+    return { ok: false, error: "Este intake já foi convertido em projeto." };
   }
 
-  const { project, userId } = await prisma.$transaction(async (tx) => {
-    const code = await generateProjectCode(tx);
-    const project = await tx.project.create({
-      data: {
-        code,
-        title: input.title.trim(),
-        type: input.projectType,
-        status: ProjectStatus.BRIEFING_RECEBIDO,
-        clientId: intake.clientId,
-      },
-    });
-
-    await applyStageTemplate(tx, project.id, input.projectType);
-
-    await tx.intake.update({
-      where: { id: intake.id },
-      data: { status: IntakeStatus.CONVERTIDO, projectId: project.id },
-    });
-
-    let user = await tx.user.findUnique({ where: { email } });
-    if (!user) {
-      user = await tx.user.create({
-        data: { email, name: input.contactName.trim(), role: "CLIENT", clientId: intake.clientId },
+  let project;
+  let userId: string;
+  try {
+    ({ project, userId } = await prisma.$transaction(async (tx) => {
+      const code = await generateProjectCode(tx);
+      const project = await tx.project.create({
+        data: {
+          code,
+          title: input.title.trim(),
+          type: input.projectType,
+          status: ProjectStatus.BRIEFING_RECEBIDO,
+          clientId: intake.clientId,
+        },
       });
-    } else if (user.role !== "CLIENT" || user.clientId !== intake.clientId) {
-      throw new Error("Este e-mail já está cadastrado para outro papel ou outra empresa.");
+
+      await applyStageTemplate(tx, project.id, input.projectType);
+
+      await tx.intake.update({
+        where: { id: intake.id },
+        data: { status: IntakeStatus.CONVERTIDO, projectId: project.id },
+      });
+
+      let user = await tx.user.findUnique({ where: { email } });
+      if (!user) {
+        user = await tx.user.create({
+          data: { email, name: input.contactName.trim(), role: "CLIENT", clientId: intake.clientId },
+        });
+      } else if (user.role !== "CLIENT" || user.clientId !== intake.clientId) {
+        throw new ConvertIntakeValidationError(
+          "Este e-mail já está cadastrado para outro papel ou outra empresa."
+        );
+      }
+
+      await tx.projectUpdate.create({
+        data: {
+          projectId: project.id,
+          authorId: staff.id,
+          type: UpdateType.STATUS,
+          visibility: Visibility.CLIENTE,
+          text: `Projeto criado a partir do briefing ${intake.protocol}.`,
+        },
+      });
+
+      return { project, userId: user.id };
+    }));
+  } catch (err) {
+    if (err instanceof ConvertIntakeValidationError) {
+      return { ok: false, error: err.message };
     }
-
-    await tx.projectUpdate.create({
-      data: {
-        projectId: project.id,
-        authorId: staff.id,
-        type: UpdateType.STATUS,
-        visibility: Visibility.CLIENTE,
-        text: `Projeto criado a partir do briefing ${intake.protocol}.`,
-      },
-    });
-
-    return { project, userId: user.id };
-  });
+    throw err;
+  }
 
   // Fora da transação: efeito externo (e-mail). Best-effort — se falhar, o
   // staff pode reenviar o convite via `inviteClientUser` depois.
@@ -162,10 +209,10 @@ export async function convertIntake(intakeId: string, input: ConvertIntakeInput)
     );
   }
 
-  return { projectId: project.id, projectCode: project.code };
+  return { ok: true, projectId: project.id, projectCode: project.code };
 }
 
-export type DeleteIntakeResult = { id: string; protocol: string };
+export type DeleteIntakeResult = { ok: true; id: string; protocol: string } | { ok: false; error: string };
 
 /** Exclui um Intake (descartado por engano, lixo de teste, etc). Diferente
  * de `deleteProject`: aqui é o INTAKE que some, não o Project. O schema não
@@ -178,22 +225,29 @@ export type DeleteIntakeResult = { id: string; protocol: string };
  *
  * Idempotente por convergência (mesmo padrão de `deleteProject`): a primeira
  * chamada apaga; um retry/duplo-clique encontra o registro já ausente e
- * falha com "Intake não encontrado" — nunca um efeito duplicado. */
+ * falha com "Intake não encontrado" — nunca um efeito duplicado.
+ *
+ * Erros esperados (id inválido, registro não encontrado) voltam como
+ * `{ ok: false, error }`, nunca `throw` — mesma correção do #441 aplicada em
+ * `convertIntake` (ver nota lá): esta action é chamada direto por
+ * `RowDeleteButton` (`deleteIntake.bind(null, intake.id)`), e um `throw`
+ * aqui seria redigido pelo Next.js em produção. */
 export async function deleteIntake(intakeId: string): Promise<DeleteIntakeResult> {
   await requireStaff();
 
   if (typeof intakeId !== "string" || intakeId.trim().length < 1) {
-    throw new Error("Id de intake inválido.");
+    return { ok: false, error: "Id de intake inválido." };
   }
 
   try {
-    return await prisma.intake.delete({
+    const deleted = await prisma.intake.delete({
       where: { id: intakeId },
       select: { id: true, protocol: true },
     });
+    return { ok: true, ...deleted };
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") {
-      throw new Error("Intake não encontrado.");
+      return { ok: false, error: "Intake não encontrado." };
     }
     throw err;
   }

@@ -43,10 +43,25 @@ export function ConvertIntakeForm({
         contactName,
         contactEmail,
       });
+      if (!result.ok) {
+        // Erro de validação/regra de negócio — mensagem amigável que a
+        // action devolve como DADO, nunca via `throw` (ver nota em
+        // `convertIntake`: lançar aqui faria o Next.js produção redigir a
+        // mensagem e mostrar "Minified React error #441" em vez dela).
+        setError(result.error);
+        setPending(false);
+        return;
+      }
       router.push(`/admin/projetos/${result.projectId}`);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível converter este intake.");
+      // Só cai aqui uma falha REALMENTE inesperada (rede caiu, banco fora do
+      // ar etc.) — não usar `err.message`: em produção o Next.js substitui a
+      // mensagem original por um texto genérico de proteção (digest), então
+      // exibir sempre um texto fixo e deixar o detalhe só no console/log do
+      // servidor.
+      console.error("[ConvertIntakeForm] Falha inesperada ao converter intake.", err);
+      setError("Não foi possível converter este intake agora. Tente novamente em instantes.");
       setPending(false);
     }
   }

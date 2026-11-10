@@ -21,7 +21,11 @@ export function RowDeleteButton({
   label: string;
   /** Texto do aviso dentro do painel de confirmação. */
   confirmText: React.ReactNode;
-  onDelete: () => Promise<unknown>;
+  /** `deleteIntake`/`deleteProject` devolvem `{ ok, error }` (nunca
+   * lançam para erro esperado — ver nota em `convertIntake`, mesma correção
+   * do "Minified React error #441"), por isso o contrato aqui exige essa
+   * união em vez de `unknown`. */
+  onDelete: () => Promise<{ ok: true } | { ok: false; error: string }>;
 }) {
   const router = useRouter();
   const panelId = useId();
@@ -33,11 +37,19 @@ export function RowDeleteButton({
     setPending(true);
     setError(null);
     try {
-      await onDelete();
+      const result = await onDelete();
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
       router.refresh();
       setConfirming(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao excluir.");
+      // Só cai aqui uma falha REALMENTE inesperada — não usar `err.message`
+      // (em produção o Next.js substitui a mensagem original por um texto
+      // genérico de proteção quando a action lança).
+      console.error("[RowDeleteButton] Falha inesperada ao excluir.", err);
+      setError("Não foi possível excluir agora. Tente novamente em instantes.");
     } finally {
       setPending(false);
     }

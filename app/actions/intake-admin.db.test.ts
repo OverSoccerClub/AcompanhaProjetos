@@ -20,6 +20,7 @@ vi.mock("@/lib/magic-link", () => ({ requestMagicLink: vi.fn().mockResolvedValue
 let prisma: typeof import("@/lib/prisma").prisma;
 let deleteIntake: typeof import("./intake-admin").deleteIntake;
 let listIntakes: typeof import("./intake-admin").listIntakes;
+let convertIntake: typeof import("./intake-admin").convertIntake;
 
 const STAFF_SESSION = { id: "qa-staff-session", email: "qa-staff@innovarecode.com.br", name: "QA Staff", role: "STAFF" as const, clientId: null, active: true };
 
@@ -29,7 +30,7 @@ const cleanupProjectIds: string[] = [];
 
 beforeAll(async () => {
   ({ prisma } = await import("@/lib/prisma"));
-  ({ deleteIntake, listIntakes } = await import("./intake-admin"));
+  ({ deleteIntake, listIntakes, convertIntake } = await import("./intake-admin"));
 
   await prisma.client.create({ data: { id: clientId, name: "QA Cliente DeleteIntake" } });
 });
@@ -87,7 +88,7 @@ describe("deleteIntake — STAFF autenticado", () => {
     const intake = await createIntake();
 
     const result = await deleteIntake(intake.id);
-    expect(result).toEqual({ id: intake.id, protocol: intake.protocol });
+    expect(result).toEqual({ ok: true, id: intake.id, protocol: intake.protocol });
 
     expect(await prisma.intake.findUnique({ where: { id: intake.id } })).toBeNull();
   });
@@ -104,22 +105,25 @@ describe("deleteIntake — STAFF autenticado", () => {
     expect(stillThere!.title).toBe("Projeto originado do intake");
   });
 
-  it("intakeId inexistente falha com erro claro (não lança um erro de Prisma cru)", async () => {
+  it("intakeId inexistente: { ok: false, error } — erro claro, nunca lança (regressão #441)", async () => {
     sessionMock.requireStaff.mockResolvedValue(STAFF_SESSION);
-    await expect(deleteIntake("clxxxxxxxxxxxxxxxxxxxxxxx0")).rejects.toThrow("Intake não encontrado.");
+    const result = await deleteIntake("clxxxxxxxxxxxxxxxxxxxxxxx0");
+    expect(result).toEqual({ ok: false, error: "Intake não encontrado." });
   });
 
-  it("intakeId vazio/inválido falha sem tocar o banco", async () => {
+  it("intakeId vazio/inválido: { ok: false, error } — sem tocar o banco", async () => {
     sessionMock.requireStaff.mockResolvedValue(STAFF_SESSION);
-    await expect(deleteIntake("")).rejects.toThrow("Id de intake inválido.");
+    const result = await deleteIntake("");
+    expect(result).toEqual({ ok: false, error: "Id de intake inválido." });
   });
 
-  it("repetir a exclusão (retry/duplo-clique) não causa efeito duplicado — a 2ª chamada falha limpo", async () => {
+  it("repetir a exclusão (retry/duplo-clique) não causa efeito duplicado — a 2ª chamada volta { ok: false }", async () => {
     sessionMock.requireStaff.mockResolvedValue(STAFF_SESSION);
     const intake = await createIntake();
 
     await deleteIntake(intake.id);
-    await expect(deleteIntake(intake.id)).rejects.toThrow("Intake não encontrado.");
+    const second = await deleteIntake(intake.id);
+    expect(second).toEqual({ ok: false, error: "Intake não encontrado." });
   });
 });
 
@@ -188,5 +192,153 @@ describe("listIntakes — paginação por OFFSET com total", () => {
     expect(result.page).toBe(1);
     expect(result.pageSize).toBe(25);
     expect(result.total).toBe(11);
+  });
+});
+
+// Regressão do "Minified React error #441" em produção (2026-11-10): toda
+// falha de validação/regra de negócio ESPERADA tem que voltar como
+// `{ ok: false, error }` — nunca `throw` — porque esta action é chamada
+// direto (`await convertIntake(...)`) pelo `ConvertIntakeForm`, não via
+// `<form action>`, e o Next.js redige qualquer erro LANÇADO de uma Server
+// Action em build de produção (o cliente só recebe o digest genérico, que o
+// React exibe como "Minified React error #441"). Ver nota na própria
+// função. Só uma falha genuinamente inesperada deve seguir lançando.
+describe("convertIntake — erros de negócio voltam como dado, nunca como throw (regressão #441)", () => {
+  const convertClientId = qaId("client-convert");
+  const otherClientId = qaId("client-convert-other");
+  const cleanupUserIds: string[] = [];
+  let convertStaffSession: typeof STAFF_SESSION;
+
+  beforeAll(async () => {
+    await prisma.client.create({ data: { id: convertClientId, name: "QA Cliente Converter" } });
+    await prisma.client.create({ data: { id: otherClientId, name: "QA Cliente Converter (outro)" } });
+
+    // `tx.projectUpdate.create` exige `authorId` de um User real (FK) — o
+    // `STAFF_SESSION` do topo do arquivo usa um id fictício que serve para
+    // `deleteIntake` (nunca grava ProjectUpdate), mas não para `convertIntake`.
+    const staff = await prisma.user.create({
+      data: { email: `${qaId("staff-convert")}@innovarecode.com.br`, name: "QA Staff Converter", role: "STAFF", active: true },
+    });
+    cleanupUserIds.push(staff.id);
+    convertStaffSession = { ...STAFF_SESSION, id: staff.id };
+  });
+
+  afterAll(async () => {
+    // Ordem importa (FKs): Intake.clientId e Project.clientId bloqueiam a
+    // exclusão do Client enquanto existirem; ProjectUpdate.authorId é
+    // `onDelete: Restrict` contra User, então o Project (que faz cascade em
+    // ProjectUpdate) tem que sumir ANTES do staff. Intake/Project destes
+    // clients de teste já estão também nos arrays globais do arquivo — a
+    // limpeza do `afterAll` de fora roda depois e só encontra 0 linhas.
+    await prisma.intake.deleteMany({ where: { clientId: { in: [convertClientId, otherClientId] } } });
+    await prisma.project.deleteMany({ where: { clientId: { in: [convertClientId, otherClientId] } } });
+    await prisma.user.deleteMany({ where: { id: { in: cleanupUserIds } } });
+    await prisma.client.deleteMany({ where: { id: { in: [convertClientId, otherClientId] } } });
+  });
+
+  beforeEach(() => {
+    sessionMock.requireStaff.mockResolvedValue(convertStaffSession);
+  });
+
+  async function createConvertIntake(status: "NOVO" | "CONVERTIDO" = "NOVO") {
+    const intake = await prisma.intake.create({
+      data: {
+        protocol: qaId("BRF-CONV"),
+        schemaVersion: 1,
+        source: "qa-test",
+        payload: { contact: {} },
+        status,
+        consentAt: new Date(),
+        consentTextVersion: "qa",
+        clientId: convertClientId,
+      },
+    });
+    cleanupIntakeIds.push(intake.id);
+    return intake;
+  }
+
+  it("título curto demais: { ok: false, error } — sem criar Project", async () => {
+    const intake = await createConvertIntake();
+    const result = await convertIntake(intake.id, {
+      title: "A",
+      projectType: "SITE",
+      contactName: "Contato Teste",
+      contactEmail: `${qaId("contato")}@example.com`,
+    });
+    expect(result).toEqual({ ok: false, error: "Título do projeto precisa ter ao menos 2 caracteres." });
+  });
+
+  it("e-mail de contato inválido: { ok: false, error }", async () => {
+    const intake = await createConvertIntake();
+    const result = await convertIntake(intake.id, {
+      title: "Projeto Teste",
+      projectType: "SITE",
+      contactName: "Contato Teste",
+      contactEmail: "nao-e-email",
+    });
+    expect(result).toEqual({ ok: false, error: "E-mail de contato inválido." });
+  });
+
+  it("intake já convertido: { ok: false, error } — nunca lança", async () => {
+    const intake = await createConvertIntake("CONVERTIDO");
+    const result = await convertIntake(intake.id, {
+      title: "Projeto Teste",
+      projectType: "SITE",
+      contactName: "Contato Teste",
+      contactEmail: `${qaId("contato")}@example.com`,
+    });
+    expect(result).toEqual({ ok: false, error: "Este intake já foi convertido em projeto." });
+  });
+
+  it("e-mail de contato já é CLIENT de outra empresa: { ok: false, error } — transação some, nenhum Project é criado (o bug real reportado)", async () => {
+    const email = `${qaId("conflito")}@example.com`;
+    const existingUser = await prisma.user.create({
+      data: { email, name: "Já Cadastrado", role: "CLIENT", clientId: otherClientId },
+    });
+    cleanupUserIds.push(existingUser.id);
+
+    const intake = await createConvertIntake();
+    const projectsBefore = await prisma.project.count({ where: { clientId: convertClientId } });
+
+    const result = await convertIntake(intake.id, {
+      title: "Projeto Teste",
+      projectType: "SITE",
+      contactName: "Contato Teste",
+      contactEmail: email,
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "Este e-mail já está cadastrado para outro papel ou outra empresa.",
+    });
+    // Rollback completo: nem o Project nem a mudança de status do Intake
+    // persistem — a transação não fica "meio aplicada".
+    expect(await prisma.project.count({ where: { clientId: convertClientId } })).toBe(projectsBefore);
+    const reloaded = await prisma.intake.findUnique({ where: { id: intake.id } });
+    expect(reloaded!.status).toBe("NOVO");
+  });
+
+  it("caminho feliz: { ok: true, projectId, projectCode } e o Intake vira CONVERTIDO", async () => {
+    const email = `${qaId("novo-cliente")}@example.com`;
+    const intake = await createConvertIntake();
+
+    const result = await convertIntake(intake.id, {
+      title: "Projeto Feliz",
+      projectType: "SITE",
+      contactName: "Cliente Novo",
+      contactEmail: email,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("esperado ok:true");
+    cleanupProjectIds.push(result.projectId);
+
+    const createdUser = await prisma.user.findUnique({ where: { email } });
+    expect(createdUser?.role).toBe("CLIENT");
+    if (createdUser) cleanupUserIds.push(createdUser.id);
+
+    const reloaded = await prisma.intake.findUnique({ where: { id: intake.id } });
+    expect(reloaded!.status).toBe("CONVERTIDO");
+    expect(reloaded!.projectId).toBe(result.projectId);
   });
 });

@@ -24,11 +24,20 @@ export function DeleteProjectForm({ projectId, projectLabel }: { projectId: stri
     setPending(true);
     setError(null);
     try {
-      await deleteProject(projectId);
+      const result = await deleteProject(projectId);
+      if (!result.ok) {
+        setPending(false);
+        setError(result.error);
+        return;
+      }
       router.push("/admin/projetos");
     } catch (err) {
+      // Só cai aqui uma falha REALMENTE inesperada — não usar `err.message`
+      // (em produção o Next.js substitui a mensagem original por um texto
+      // genérico de proteção quando a action lança; ver nota em `convertIntake`).
+      console.error("[DeleteProjectForm] Falha inesperada ao excluir projeto.", err);
       setPending(false);
-      setError(err instanceof Error ? err.message : "Falha ao excluir o projeto.");
+      setError("Não foi possível excluir o projeto agora. Tente novamente em instantes.");
     }
   }
 

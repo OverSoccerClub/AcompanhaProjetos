@@ -21,12 +21,20 @@ export function InviteClientForm({ clientId }: { clientId: string }) {
     setError(null);
     setDone(false);
     try {
-      await inviteClientUser(clientId, email, name);
+      const result = await inviteClientUser(clientId, email, name);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
       setDone(true);
       setName("");
       setEmail("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível enviar o convite.");
+      // Só cai aqui uma falha REALMENTE inesperada (ex.: SMTP fora do ar) —
+      // não usar `err.message` (em produção o Next.js substitui a mensagem
+      // original por um texto genérico de proteção; ver nota em `convertIntake`).
+      console.error("[InviteClientForm] Falha inesperada ao enviar convite.", err);
+      setError("Não foi possível enviar o convite agora. Tente novamente em instantes.");
     } finally {
       setPending(false);
     }

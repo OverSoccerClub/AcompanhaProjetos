@@ -90,28 +90,38 @@ export type AddUpdateInput = {
   stageId?: string;
 };
 
+export type AddProjectUpdateResult = { ok: true; id: string } | { ok: false; error: string };
+
 /** Adiciona uma entrada livre na linha do tempo. `visibility` é SEMPRE
  * explícito aqui (sem default silencioso) — quem escreve decide, na hora,
- * se aquilo é para o cliente ver. */
-export async function addProjectUpdate(projectId: string, input: AddUpdateInput) {
+ * se aquilo é para o cliente ver.
+ *
+ * Erros esperados (texto vazio, visibilidade inválida, projeto/etapa
+ * inexistente) voltam como `{ ok: false, error }`, nunca `throw` — mesma
+ * correção do "Minified React error #441" aplicada em `convertIntake` (ver
+ * nota lá): `AddUpdateForm` chama esta action direto, sem `<form action>`,
+ * e um `throw` aqui seria redigido pelo Next.js em build de produção. */
+export async function addProjectUpdate(projectId: string, input: AddUpdateInput): Promise<AddProjectUpdateResult> {
   const staff = await requireStaff();
 
   if (typeof input.text !== "string" || input.text.trim().length < 1) {
-    throw new Error("Texto da atualização não pode ser vazio.");
+    return { ok: false, error: "Texto da atualização não pode ser vazio." };
   }
   if (input.visibility !== Visibility.INTERNA && input.visibility !== Visibility.CLIENTE) {
-    throw new Error("Visibilidade inválida.");
+    return { ok: false, error: "Visibilidade inválida." };
   }
 
   const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
-  if (!project) throw new Error("Projeto não encontrado.");
+  if (!project) return { ok: false, error: "Projeto não encontrado." };
 
   if (input.stageId) {
     const stage = await prisma.projectStage.findUnique({ where: { id: input.stageId }, select: { projectId: true } });
-    if (!stage || stage.projectId !== projectId) throw new Error("Etapa não pertence a este projeto.");
+    if (!stage || stage.projectId !== projectId) {
+      return { ok: false, error: "Etapa não pertence a este projeto." };
+    }
   }
 
-  return prisma.projectUpdate.create({
+  const update = await prisma.projectUpdate.create({
     data: {
       projectId,
       stageId: input.stageId ?? null,
@@ -121,23 +131,33 @@ export async function addProjectUpdate(projectId: string, input: AddUpdateInput)
       text: input.text.trim().slice(0, 10_000),
     },
   });
+  return { ok: true, id: update.id };
 }
 
+export type InviteClientUserResult = { ok: true; userId: string } | { ok: false; error: string };
+
 /** Convida (ou reconvida) um contato de um Client já existente — mesmo
- * fluxo de link mágico usado na conversão de intake (seção 5.3b). */
-export async function inviteClientUser(clientId: string, email: string, name: string) {
+ * fluxo de link mágico usado na conversão de intake (seção 5.3b).
+ *
+ * Erros esperados (e-mail/nome inválido, cliente inexistente, e-mail já
+ * usado por outro papel/empresa) voltam como `{ ok: false, error }`, nunca
+ * `throw` — mesma correção do #441 aplicada em `convertIntake` (ver nota
+ * lá): `InviteClientForm` chama esta action direto. Falha no envio do
+ * e-mail em si (`requestMagicLink`) continua lançando — é inesperada de
+ * verdade (SMTP fora do ar etc.), não uma regra de negócio. */
+export async function inviteClientUser(clientId: string, email: string, name: string): Promise<InviteClientUserResult> {
   await requireStaff();
 
   const normalizedEmail = email?.trim().toLowerCase();
-  if (!normalizedEmail || !normalizedEmail.includes("@")) throw new Error("E-mail inválido.");
-  if (typeof name !== "string" || name.trim().length < 2) throw new Error("Nome inválido.");
+  if (!normalizedEmail || !normalizedEmail.includes("@")) return { ok: false, error: "E-mail inválido." };
+  if (typeof name !== "string" || name.trim().length < 2) return { ok: false, error: "Nome inválido." };
 
   const client = await prisma.client.findUnique({ where: { id: clientId }, select: { id: true } });
-  if (!client) throw new Error("Cliente não encontrado.");
+  if (!client) return { ok: false, error: "Cliente não encontrado." };
 
   let user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (user && (user.role !== "CLIENT" || user.clientId !== clientId)) {
-    throw new Error("Este e-mail já está cadastrado para outro papel ou outra empresa.");
+    return { ok: false, error: "Este e-mail já está cadastrado para outro papel ou outra empresa." };
   }
   if (!user) {
     user = await prisma.user.create({
@@ -146,10 +166,10 @@ export async function inviteClientUser(clientId: string, email: string, name: st
   }
 
   await requestMagicLink(user.email, null);
-  return { userId: user.id };
+  return { ok: true, userId: user.id };
 }
 
-export type DeleteProjectResult = { id: string; code: string };
+export type DeleteProjectResult = { ok: true; id: string; code: string } | { ok: false; error: string };
 
 /** Exclui um Project e tudo que só existe em função dele (ProjectStage,
  * ProjectUpdate) — NUNCA o Client, o User nem o Intake que o originou.
@@ -164,12 +184,18 @@ export type DeleteProjectResult = { id: string; code: string };
  * Idempotente no sentido de convergência de estado: a primeira chamada
  * apaga; uma repetição (duplo clique, retry) encontra o projeto já
  * ausente e falha com "Projeto não encontrado" — não há efeito duplicado
- * possível numa exclusão. */
+ * possível numa exclusão.
+ *
+ * Erros esperados (id inválido, projeto não encontrado) voltam como
+ * `{ ok: false, error }`, nunca `throw` — mesma correção do #441 aplicada em
+ * `convertIntake` (ver nota lá): esta action é chamada direto tanto por
+ * `RowDeleteButton` (lista) quanto por `DeleteProjectForm` (detalhe), e um
+ * `throw` aqui seria redigido pelo Next.js em produção. */
 export async function deleteProject(projectId: string): Promise<DeleteProjectResult> {
   await requireStaff();
 
   if (typeof projectId !== "string" || projectId.trim().length < 1) {
-    throw new Error("Id de projeto inválido.");
+    return { ok: false, error: "Id de projeto inválido." };
   }
 
   try {
@@ -177,10 +203,10 @@ export async function deleteProject(projectId: string): Promise<DeleteProjectRes
       where: { id: projectId },
       select: { id: true, code: true },
     });
-    return deleted;
+    return { ok: true, ...deleted };
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") {
-      throw new Error("Projeto não encontrado.");
+      return { ok: false, error: "Projeto não encontrado." };
     }
     throw err;
   }
