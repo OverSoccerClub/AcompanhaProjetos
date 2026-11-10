@@ -51,6 +51,7 @@ export default async function AdminProjectDetailPage({ params }: { params: Promi
             <div style={{ marginTop: 12 }}>
               <PhaseTimeline
                 stages={project.stages}
+                variant="admin"
                 renderControls={(stage) => <StageControl stageId={stage.id} currentStatus={stage.status} />}
               />
             </div>

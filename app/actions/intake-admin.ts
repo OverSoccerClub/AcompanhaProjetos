@@ -13,6 +13,9 @@ import { requestMagicLink } from "@/lib/magic-link";
 
 export type ListIntakesInput = {
   status?: (typeof IntakeStatus)[keyof typeof IntakeStatus];
+  /** Busca simples por nome do cliente (contains, case-insensitive) — só
+   * filtra, não ordena por relevância. */
+  q?: string;
   cursor?: string;
   limit?: number;
 };
@@ -24,9 +27,13 @@ const DEFAULT_LIST_LIMIT = 20;
 export async function listIntakes(input: ListIntakesInput = {}) {
   await requireStaff();
   const limit = Math.min(Math.max(input.limit ?? DEFAULT_LIST_LIMIT, 1), MAX_LIST_LIMIT);
+  const q = input.q?.trim();
 
   const items = await prisma.intake.findMany({
-    where: input.status ? { status: input.status } : undefined,
+    where: {
+      ...(input.status && { status: input.status }),
+      ...(q && { client: { name: { contains: q, mode: "insensitive" } } }),
+    },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: limit + 1,
     ...(input.cursor && { cursor: { id: input.cursor }, skip: 1 }),
@@ -42,6 +49,24 @@ export async function listIntakes(input: ListIntakesInput = {}) {
 
   const hasMore = items.length > limit;
   return { items: items.slice(0, limit), nextCursor: hasMore ? items[limit].id : null };
+}
+
+/** Contagem de intakes por status (KPIs e pílulas de filtro do admin — §6.12
+ * do design system). Uma única query de agregação, nunca N chamadas de
+ * `count()` por status. */
+export async function getIntakeStatusCounts(): Promise<Record<string, number>> {
+  await requireStaff();
+  const groups = await prisma.intake.groupBy({ by: ["status"], _count: { _all: true } });
+  const counts: Record<string, number> = {};
+  for (const g of groups) counts[g.status] = g._count._all;
+  return counts;
+}
+
+/** Só a contagem de intakes NOVO — usada no badge da sidebar do admin
+ * (`AdminShell`), que precisa ser leve porque renderiza em toda página. */
+export async function countNewIntakes(): Promise<number> {
+  await requireStaff();
+  return prisma.intake.count({ where: { status: IntakeStatus.NOVO } });
 }
 
 export async function getIntake(intakeId: string) {

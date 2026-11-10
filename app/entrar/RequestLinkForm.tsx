@@ -9,6 +9,7 @@
 import { useId, useState } from "react";
 import { Alert } from "@/app/_components/Alert";
 import { SubmitButton } from "@/app/_components/SubmitButton";
+import { MailIcon, ArrowRightIcon, CheckIcon } from "@/app/_components/icons";
 
 export function RequestLinkForm() {
   const emailId = useId();
@@ -50,11 +51,13 @@ export function RequestLinkForm() {
 
   if (status === "sent") {
     return (
-      <Alert tone="success">
-        {message}
-        <br />
-        <span className="section-hint">Verifique também a caixa de spam.</span>
-      </Alert>
+      <div className="sent" role="status">
+        <CheckIcon size={18} />
+        <span>
+          <b>Link enviado para {email || "seu e-mail"}</b>
+          {message} Verifique também a caixa de spam.
+        </span>
+      </div>
     );
   }
 
@@ -62,28 +65,31 @@ export function RequestLinkForm() {
     <form onSubmit={handleSubmit} noValidate>
       <div className="field">
         <label htmlFor={emailId}>E-mail</label>
-        <input
-          id={emailId}
-          name="email"
-          type="email"
-          className="input"
-          required
-          autoComplete="email"
-          autoFocus
-          aria-invalid={status === "error"}
-          aria-describedby={status === "error" ? `${emailId}-error` : undefined}
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="voce@empresa.com.br"
-        />
+        <div className="input-wrap">
+          <MailIcon />
+          <input
+            id={emailId}
+            name="email"
+            type="email"
+            className="input"
+            required
+            autoComplete="email"
+            autoFocus
+            aria-invalid={status === "error"}
+            aria-describedby={status === "error" ? `${emailId}-error` : undefined}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="voce@empresa.com.br"
+          />
+        </div>
         {status === "error" && message && (
-          <p className="error" id={`${emailId}-error`} role="alert">
+          <p className="error-msg" id={`${emailId}-error`} role="alert">
             {message}
           </p>
         )}
       </div>
-      <SubmitButton pending={sending} pendingLabel="Enviando..." variant="primary" className="btn-block">
-        Receber link de acesso
+      <SubmitButton pending={sending} pendingLabel="Enviando..." variant="primary" className="btn-lg btn-block">
+        Receber link de acesso {!sending && <ArrowRightIcon />}
       </SubmitButton>
     </form>
   );

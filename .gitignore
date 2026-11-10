@@ -29,3 +29,7 @@ npm-debug.log*
 # Postgres nativo local usado pela suíte de testes (Íris) — efêmero, recriado
 # a cada sessão (não sobrevive entre sessões, ver memória do projeto).
 .pgdata-test/
+
+# Arquivos auto-gerados pelo Next 16 (agentRules) — nao versionar
+AGENTS.md
+CLAUDE.md

@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireClient } from "@/lib/session";
-import { getPortalProject } from "@/lib/portal-data";
+import { getPortalProject, getClientName } from "@/lib/portal-data";
 import { PortalShell } from "../_components/PortalShell";
 import { StatusBadge } from "@/app/_components/StatusBadge";
-import { PhaseTimeline } from "@/app/_components/PhaseTimeline";
+import { PhaseTimeline, projectProgress } from "@/app/_components/PhaseTimeline";
+import { ProjectSummary } from "@/app/_components/ProjectSummary";
+import { ApprovalCallout } from "@/app/_components/ApprovalCallout";
 import { UpdatesList } from "@/app/_components/UpdatesList";
-import { formatDate } from "@/app/_components/format";
+import { formatDateTime } from "@/app/_components/format";
 import { PROJECT_STATUS_META, metaOrFallback } from "@/app/_components/status-maps";
 
 export const metadata: Metadata = { title: "Projeto — Innovare Acompanhe" };
@@ -20,48 +22,66 @@ export const metadata: Metadata = { title: "Projeto — Innovare Acompanhe" };
 export default async function PortalProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const client = await requireClient();
   const { id } = await params;
-  const project = await getPortalProject(client.clientId, id);
+  const [project, companyName] = await Promise.all([getPortalProject(client.clientId, id), getClientName(client.clientId)]);
   if (!project) notFound();
 
   const meta = metaOrFallback(PROJECT_STATUS_META, project.status);
+  const progress = projectProgress(project.stages);
 
   return (
-    <PortalShell clientName={client.name}>
-      <div className="breadcrumb">
-        <Link href="/portal">← Voltar para seus projetos</Link>
-      </div>
+    <PortalShell clientName={client.name} companyName={companyName}>
+      <nav className="crumb" aria-label="Trilha">
+        <Link href="/portal">Meus projetos</Link>
+        <span>/</span>
+        <span>{project.code}</span>
+      </nav>
 
-      <div className="page-title-row">
+      <div className="title-row">
         <div>
-          <h1>
-            {project.code} — {project.title}
-          </h1>
-          <p className="section-hint">
-            {project.expectedStartAt && <>Início previsto em {formatDate(project.expectedStartAt)} · </>}
-            {project.expectedEndAt && <>Entrega prevista em {formatDate(project.expectedEndAt)}</>}
-          </p>
+          <h1>{project.title}</h1>
+          <div className="title-meta">
+            <span className="chip">{project.code}</span>
+            <span>Atualizado em {formatDateTime(project.updatedAt)}</span>
+          </div>
         </div>
         <StatusBadge label={meta.label} tone={meta.tone} />
       </div>
 
-      <div className="detail-grid">
+      <ProjectSummary
+        progressPct={progress.progressPct}
+        doneStages={progress.doneStages}
+        totalStages={progress.totalStages}
+        currentPhaseLabel={progress.currentPhaseLabel}
+        currentPhaseIndex={progress.currentPhaseIndex}
+        totalPhases={progress.totalPhases}
+        nextMilestoneLabel={progress.nextMilestoneLabel}
+        expectedStartAt={project.expectedStartAt}
+        expectedEndAt={project.expectedEndAt}
+      />
+
+      {progress.pendingApproval && (
+        <ApprovalCallout
+          stageName={progress.pendingApproval.name}
+          inProgress={progress.pendingApproval.status === "EM_ANDAMENTO"}
+          anchorHref="#etapas-heading"
+        />
+      )}
+
+      <div className="detail">
         <section className="card card-pad" aria-labelledby="etapas-heading">
           <h2 id="etapas-heading" className="section-title">
-            Fases do projeto
+            Etapas
           </h2>
           <p className="section-hint" style={{ marginBottom: 14 }}>
             Descoberta → Planejamento &amp; Design → Desenvolvimento → Entrega &amp; Suporte.
           </p>
-          <PhaseTimeline stages={project.stages} />
+          <PhaseTimeline stages={project.stages} variant="portal" />
         </section>
 
         <section className="card card-pad" aria-labelledby="atualizacoes-heading">
-          <h2 id="atualizacoes-heading" className="section-title">
+          <h2 id="atualizacoes-heading" className="section-title" style={{ marginBottom: 14 }}>
             Atualizações
           </h2>
-          <p className="section-hint" style={{ marginBottom: 14 }}>
-            O que a equipe InnovareCode compartilhou sobre o seu projeto.
-          </p>
           <UpdatesList updates={project.updates} />
         </section>
       </div>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireClient } from "@/lib/session";
-import { listPortalProjects } from "@/lib/portal-data";
+import { listPortalProjects, getClientName } from "@/lib/portal-data";
 import { PortalShell } from "./_components/PortalShell";
 import { StatusBadge } from "@/app/_components/StatusBadge";
 import { EmptyState } from "@/app/_components/EmptyState";
@@ -14,10 +14,13 @@ export const metadata: Metadata = { title: "Meus projetos — Innovare Acompanhe
 // diretamente a partir de `app/portal/**` (regra estrutural do produto).
 export default async function PortalHomePage() {
   const client = await requireClient();
-  const projects = await listPortalProjects(client.clientId);
+  const [projects, companyName] = await Promise.all([
+    listPortalProjects(client.clientId),
+    getClientName(client.clientId),
+  ]);
 
   return (
-    <PortalShell clientName={client.name}>
+    <PortalShell clientName={client.name} companyName={companyName}>
       <div className="page-title-row">
         <div>
           <h1>Seus projetos</h1>

@@ -54,6 +54,14 @@ const PROJECT_SELECT = {
 export type PortalProjectSummary = Awaited<ReturnType<typeof listPortalProjects>>[number];
 export type PortalProjectDetail = NonNullable<Awaited<ReturnType<typeof getPortalProject>>>;
 
+/** Nome da empresa (Client) do cliente da sessão — só para exibição no
+ * cabeçalho do portal (lockup "Ana Ribeiro · Clínica Vitta"). Mesmo escopo
+ * de segurança das demais funções deste módulo: `clientId` vem sempre da
+ * sessão, nunca de input externo. */
+export function getClientName(clientId: string): Promise<string | null> {
+  return prisma.client.findUnique({ where: { id: clientId }, select: { name: true } }).then((c) => c?.name ?? null);
+}
+
 /** Lista os projetos do cliente da sessão — nunca aceita um `clientId`
  * vindo de input externo (sempre o da sessão, resolvido por `requireClient()`). */
 export function listPortalProjects(clientId: string) {

@@ -52,7 +52,7 @@ export function EnterButton({ token }: { token: string }) {
     <>
       <button
         type="submit"
-        className="btn btn-primary btn-block"
+        className="btn btn-primary btn-lg btn-block"
         aria-busy={entering}
         onClick={onClick}
       >
@@ -60,7 +60,7 @@ export function EnterButton({ token }: { token: string }) {
         {entering ? "Entrando..." : "Entrar"}
       </button>
       {error && (
-        <p className="auth-error" role="alert" style={{ marginTop: 12 }}>
+        <p className="auth-error" role="alert" style={{ marginTop: 0 }}>
           {error}
         </p>
       )}

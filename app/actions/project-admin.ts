@@ -147,19 +147,42 @@ export async function inviteClientUser(clientId: string, email: string, name: st
   return { userId: user.id };
 }
 
-/** Lista os projetos para a tela de admin (sem filtro de cliente, com
- * paginação — nunca "todos os projetos" sem limite). */
-export async function listProjectsForAdmin(cursor?: string, limit = 20) {
+export type ListProjectsInput = {
+  status?: (typeof ProjectStatus)[keyof typeof ProjectStatus];
+  /** Busca simples por nome do cliente (contains, case-insensitive). */
+  q?: string;
+  cursor?: string;
+  limit?: number;
+};
+
+/** Lista os projetos para a tela de admin (sem filtro de cliente por
+ * padrão, com paginação — nunca "todos os projetos" sem limite). */
+export async function listProjectsForAdmin(input: ListProjectsInput = {}) {
   await requireStaff();
-  const take = Math.min(Math.max(limit, 1), 50);
+  const take = Math.min(Math.max(input.limit ?? 20, 1), 50);
+  const q = input.q?.trim();
   const items = await prisma.project.findMany({
+    where: {
+      ...(input.status && { status: input.status }),
+      ...(q && { client: { name: { contains: q, mode: "insensitive" } } }),
+    },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     take: take + 1,
-    ...(cursor && { cursor: { id: cursor }, skip: 1 }),
+    ...(input.cursor && { cursor: { id: input.cursor }, skip: 1 }),
     select: { id: true, code: true, title: true, status: true, updatedAt: true, client: { select: { name: true } } },
   });
   const hasMore = items.length > take;
   return { items: items.slice(0, take), nextCursor: hasMore ? items[take].id : null };
+}
+
+/** Contagem de projetos por status (KPIs do admin — §6.12). Uma única query
+ * de agregação. */
+export async function getProjectStatusCounts(): Promise<Record<string, number>> {
+  await requireStaff();
+  const groups = await prisma.project.groupBy({ by: ["status"], _count: { _all: true } });
+  const counts: Record<string, number> = {};
+  for (const g of groups) counts[g.status] = g._count._all;
+  return counts;
 }
 
 /** Detalhe completo do projeto para o admin — SEM filtro de visibilidade
